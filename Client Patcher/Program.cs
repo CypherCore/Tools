@@ -15,7 +15,7 @@ namespace ClientPatcher
             if (args.Length >= 1)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("Cypher Systems Connection Patcher");
+                Console.WriteLine("CypherCore Connection Patcher");
 
                 var patchCertBundleSignatureCheck = Patches.Windows.x64.CertBundleSignatureCheck;
                 var patternCertBundleSignatureCheck = Patterns.Windows.x64.CertBundleSignatureCheck;
