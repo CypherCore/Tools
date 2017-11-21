@@ -80,16 +80,15 @@ namespace DataExtractor
         public static bool ConvertADT(CASCHandler cascHandler, string inputPath, string outputPath, int cell_y, int cell_x, uint build)
         {
             ChunkedFile adt = new ChunkedFile();
-            uint time = Time.GetMSTime();
             if (!adt.loadFile(cascHandler, inputPath))
                 return false;
-            //Console.WriteLine($"\n Load Time: {Time.GetMSTimeDiffToNow(time)}");
+
             // Prepare map header
             map_fileheader map;
             map.mapMagic = MAP_MAGIC;
             map.versionMagic = MAP_VERSION_MAGIC;
             map.buildMagic = build;
-            time = Time.GetMSTime();
+
             // Get area flags data
             for (var x = 0; x < ADT_CELLS_PER_GRID; ++x)
             {
@@ -607,8 +606,7 @@ namespace DataExtractor
                 map.holesSize = 2048;// (uint)(1 * holes.Length);
             else
                 map.holesSize = 0;
-            //Console.WriteLine($"\n Convert Time: {Time.GetMSTimeDiffToNow(time)}");
-            time = Time.GetMSTime();
+
             // Ok all data prepared - store it
             using (var fs = new FileStream(outputPath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, true))
             {
@@ -703,7 +701,6 @@ namespace DataExtractor
                 }
 
             }
-            //Console.WriteLine($"\n Write Time: {Time.GetMSTimeDiffToNow(time)}");
             return true;
         }
 

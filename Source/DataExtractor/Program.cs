@@ -26,22 +26,21 @@ namespace DataExtractor
             Console.WriteLine(@"   \ \____/\/`____ \ \ ,__/\ \_\ \_\ \____\\ \_\ ");
             Console.WriteLine(@"    \/___/  `/___/> \ \ \/  \/_/\/_/\/____/ \/_/ ");
             Console.WriteLine(@"               /\___/\ \_\                       ");
-            Console.WriteLine(@"               \/__/  \/_/                   Core Data Extractor");
+            Console.WriteLine(@"               \/__/  \/_/    Core Data Extractor");
             Console.WriteLine("\r");
-            Console.ForegroundColor = ConsoleColor.White;
 
-            Console.WriteLine("PRESS 1, 2, 3 OR 4 to select your task, or 5 to EXIT.");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Select your task.");
             Console.WriteLine("1 - Extract DB2 and maps");
             //Console.WriteLine("2 - Extract vmaps(needs maps to be extracted before you run this)");
             //Console.WriteLine("3 - Extract mmaps(needs vmaps to be extracted before you run this, may take hours)");
-            //Console.WriteLine("4 - Extract all(may take hours)");
+            Console.WriteLine("4 - Extract all(may take hours)");
             Console.WriteLine("5 - EXIT");
 
-            string answer = "1";// Console.ReadLine();
-            //if (answer == "5")
-                //Environment.Exit(0);
+            string answer = Console.ReadLine();
+            if (answer == "5")
+                Environment.Exit(0);
 
-            Console.WriteLine("\r");
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("Initializing CASC library...");
             cascHandler = new CASCHandler(Environment.CurrentDirectory);
@@ -51,8 +50,8 @@ namespace DataExtractor
             switch (answer)
             {
                 case "1":
-                    //ExtractDbcFiles();
-                    ExtractMaps(25480);
+                    ExtractDbcFiles();
+                    ExtractMaps(cascHandler.GetBuildNumber());
                     break;
                 case "2":
                     ExtractVMaps();
@@ -62,12 +61,12 @@ namespace DataExtractor
                     break;
                 case "4":
                 default:
-                    //ExtractDbcFiles();
-                    ExtractMaps(25480);
+                    ExtractDbcFiles();
+                    ExtractMaps(cascHandler.GetBuildNumber());
                     ExtractVMaps();
                     ExtractMMaps();
                     break;
-            }
+            }        
         }
 
         static void ExtractDbcFiles()
@@ -259,7 +258,13 @@ namespace DataExtractor
 
         static void ExtractVMaps()
         {
+            //CreateDirectory($"{currentDirectory}/Buildings/dir");
+            //CreateDirectory($"{currentDirectory}/Buildings/dir_bin");
 
+            //Console.WriteLine("Extracting Vmap files...");
+
+            // Extract models, listed in GameObjectDisplayInfo.dbc
+            //VmapFile.ExtractGameobjectModels();
         }
 
         static void ExtractMMaps()

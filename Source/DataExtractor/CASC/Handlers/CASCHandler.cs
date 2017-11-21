@@ -351,5 +351,27 @@ namespace CASC.Handlers
                 yield return Tuple.Create(names[i], ReadFile(names[i], locales));
         }
 
+        public uint GetBuildNumber()
+        {
+            uint buildNumber = 0;
+            string[] value = buildConfig["build-name"];
+            foreach (var line in value)
+            {
+                for (var i = 0; i < line.Length; ++i)
+                {
+                    if (char.IsDigit(line[i]) && char.IsDigit(line[i + 1]) && char.IsDigit(line[i + 2]))
+                    {
+                        int index = i;
+                        while (index < line.Length && char.IsDigit(line[index]))
+                            buildNumber = (uint)((buildNumber * 10) + (line[index++] - '0'));
+
+                        break;
+                    }
+                }
+            }
+
+            return buildNumber;
+        }
+
     }
 }
