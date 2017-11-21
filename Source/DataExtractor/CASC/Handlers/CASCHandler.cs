@@ -200,6 +200,11 @@ namespace CASC.Handlers
             return null;
         }
 
+        public MemoryStream ReadFile(int fileDataId, LocaleMask locales = LocaleMask.enUS)
+        {
+            return ReadFile(rootFile[fileDataId], locales);
+        }
+
         public MemoryStream ReadFile(string name, LocaleMask locales = LocaleMask.enUS)
         {
             var hash = lookup3.Hash(name.ToUpperInvariant());

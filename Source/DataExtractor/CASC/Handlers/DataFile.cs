@@ -25,6 +25,9 @@ namespace CASC.Handlers
 
                 readStream.BaseStream.Position = idxEntry.Offset + 30;
 
+                if (readStream.BaseStream.Position >= readStream.BaseStream.Length)
+                    return null;
+
                 if (readStream.ReadUInt32() != 0x45544C42)
                 {
                     Trace.TraceError($"data.{idxEntry.Index:000}: Invalid BLTE signature at 0x{readStream.BaseStream.Position:X8}.");

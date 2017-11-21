@@ -5,6 +5,7 @@ namespace CASC.Constants
     [Flags]
     public enum LocaleMask
     {
+        None = 0,
         enUS = 0x2,
         koKR = 0x4,
         frFR = 0x10,
