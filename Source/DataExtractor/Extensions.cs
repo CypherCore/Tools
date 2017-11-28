@@ -9,8 +9,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System;
 using System.Threading;
+using System.Numerics;
 
-namespace DataExtractor
+namespace System
 {
     public static class Extensions
     {
@@ -26,6 +27,7 @@ namespace DataExtractor
             return dict.TryGetValue(key, out val) ? val : default(TValue);
         }
 
+        #region BinaryReader
         public static string ReadCString(this BinaryReader reader)
         {
             byte num;
@@ -36,15 +38,73 @@ namespace DataExtractor
 
             return Encoding.UTF8.GetString(temp.ToArray());
         }
-
-        public static string ReadStringFromChars(this BinaryReader reader, int count)
+        public static string ReadString(this BinaryReader reader, int count)
+        {
+            return Encoding.UTF8.GetString(reader.ReadBytes(count));
+        }
+        public static string ReadStringFromChars(this BinaryReader reader, int count, bool reverseString = false)
         {
             byte[] values = new byte[count];
-            for (var i = 0; i < count; ++i)
-                values[i] = reader.ReadByte();
+            if (reverseString)
+            {
+                for (var i = count - 1; i >= 0; --i)
+                    values[i] = reader.ReadByte();
+            }
+            else
+            {
+                for (var i = 0; i < count; ++i)
+                    values[i] = reader.ReadByte();
+            }
 
             return Encoding.UTF8.GetString(values);
         }
+
+        public static T ReadStruct<T>(this BinaryReader reader) where T : struct
+        {
+            return ReadStruct<T>(reader, Marshal.SizeOf(typeof(T)));
+        }
+        public static T ReadStruct<T>(this BinaryReader reader, int size) where T : struct
+        {
+            byte[] data = reader.ReadBytes(size);
+            GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+            T returnObject = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+
+            handle.Free();
+            return returnObject;
+        }
+        #endregion
+
+        #region BinaryWriter
+        public static void WriteString(this BinaryWriter writer, string str)
+        {
+            writer.Write(Encoding.UTF8.GetBytes(str));
+        }
+        public static void WriteCString(this BinaryWriter writer, string str)
+        {
+            writer.Write(Encoding.UTF8.GetBytes(str));
+            writer.Write((byte)0);
+        }
+
+        public static void WriteStruct<T>(this BinaryWriter writer, T obj) where T : struct
+        {
+            int length = Marshal.SizeOf(obj);
+            IntPtr ptr = Marshal.AllocHGlobal(length);
+            byte[] myBuffer = new byte[length];
+
+            Marshal.StructureToPtr(obj, ptr, true);
+            Marshal.Copy(ptr, myBuffer, 0, length);
+            Marshal.FreeHGlobal(ptr);
+
+            writer.Write(myBuffer);
+        }
+
+        public static void WriteVector3(this BinaryWriter writer, Vector3 vector)
+        {
+            writer.Write(vector.X);
+            writer.Write(vector.Y);
+            writer.Write(vector.Z);
+        }
+        #endregion
 
         public static Func<object, object> CompileGetter(this FieldInfo field)
         {
@@ -66,7 +126,6 @@ namespace DataExtractor
             gen.Emit(OpCodes.Ret);
             return (Func<object, object>)setterMethod.CreateDelegate(typeof(Func<object, object>));
         }
-
         public static Action<object, object> CompileSetter(this FieldInfo field)
         {
             string methodName = field.ReflectedType.FullName + ".set_" + field.Name;
@@ -90,27 +149,36 @@ namespace DataExtractor
             return (Action<object, object>)setterMethod.CreateDelegate(typeof(Action<object, object>));
         }
 
-        public static T ReadStruct<T>(this BinaryReader reader) where T : struct
+        public static string GetPlainName(this string fileName)
         {
-            byte[] data = reader.ReadBytes(Marshal.SizeOf(typeof(T)));
-            GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
-            T returnObject = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+            int index = fileName.LastIndexOf('\\');
+            if (index != -1)
+                fileName = fileName.Substring(index + 1);
 
-            handle.Free();
-            return returnObject;
+            fileName = fileName.FixNameCase();
+            fileName = fileName.Replace(' ', '_');
+
+            return fileName;
         }
 
-        public static void WriteStruct<T>(this BinaryWriter writer, T obj) where T : struct
+        public static string FixNameCase(this string name)
         {
-            int length = Marshal.SizeOf(obj);
-            IntPtr ptr = Marshal.AllocHGlobal(length);
-            byte[] myBuffer = new byte[length];
+            char[] ptr = name.ToCharArray();
 
-            Marshal.StructureToPtr(obj, ptr, true);
-            Marshal.Copy(ptr, myBuffer, 0, length);
-            Marshal.FreeHGlobal(ptr);
+            int i = name.Length - 1;
+            //extension in lowercase
+            for (; ptr[i] != '.'; --i)
+                ptr[i] = char.ToLower(ptr[i]);
 
-            writer.Write(myBuffer);
+            for (; i >= 0; --i)
+            {
+                if (i > 0 && ptr[i] >= 'A' && ptr[i] <= 'Z' && char.IsLetter(ptr[i - 1]))
+                    ptr[i] = char.ToLower(ptr[i]);
+                else if ((i == 0 || !Char.IsLetter(ptr[i - 1])) && ptr[i] >= 'a' && ptr[i] <= 'z')
+                    ptr[i] = char.ToUpper(ptr[i]);
+            }
+
+            return new string(ptr);
         }
     }
 }

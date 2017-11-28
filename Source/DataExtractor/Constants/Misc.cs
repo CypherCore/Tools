@@ -54,4 +54,16 @@ namespace DataExtractor
         AsInt8 = 0x0004,
         HasFlightBounds = 0x0008
     }
+
+    public enum MopyFlags
+    {
+        Unk01 = 0x01,
+        NoCamCollide = 0x02,
+        Detail = 0x04,
+        Collision = 0x08,
+        Hint = 0x10,
+        Render = 0x20,
+        WallSurface = 0x40, // Guessed
+        CollideHit = 0x80
+    }
 }

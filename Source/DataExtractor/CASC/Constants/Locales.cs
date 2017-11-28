@@ -38,6 +38,6 @@ namespace CASC.Constants
         ptBR = 10,
         itIT = 11,
 
-        TOTAL_LOCALES
+        Total
     };
 }

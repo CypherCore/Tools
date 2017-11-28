@@ -17,6 +17,17 @@ namespace DataExtractor.ClientReader
         public uint ModelFileDataID;
     }
 
+    public sealed class GameObjectDisplayInfoRecord
+    {
+        public uint Id;
+        public uint FileDataID;
+        public float[] GeoBoxMin = new float[3];
+        public float[] GeoBoxMax = new float[3];
+        public float OverrideLootEffectScale;
+        public float OverrideNameScale;
+        public ushort ObjectEffectPackageID;
+    }
+
     public sealed class LiquidTypeRecord
     {
         public uint Id;

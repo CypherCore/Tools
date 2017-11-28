@@ -49,13 +49,16 @@ namespace CASC.Handlers
 
         public BinaryReader DownloadFile(string archive, IndexEntry indexEntry)
         {
-            var url = $"http://{Host}/{Path}/data/{archive.Substring(0, 2)}/{archive.Substring(2, 2)}/{archive}.index";
+            var url = $"http://{Host}/{Path}/data/{archive.Substring(0, 2)}/{archive.Substring(2, 2)}/{archive}";
 
-            using (WebClient webClient = new WebClient())
-            using (Stream s = webClient.OpenRead(url))
+            HttpWebRequest req = WebRequest.CreateHttp(url);
+            req.AddRange(indexEntry.Offset, indexEntry.Offset + indexEntry.Size - 1);
+            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponseAsync().Result)
+            using (Stream s = resp.GetResponseStream())
             {
                 MemoryStream ms = new MemoryStream();
                 s.CopyTo(ms);
+                ms.Position = 0;
                 return new BinaryReader(ms);
             }
         }

@@ -47,9 +47,9 @@ namespace CASC
             return (ushort)System.Net.IPAddress.HostToNetworkOrder(br.ReadInt16());
         }
 
-        public static uint ReadBEUInt32(this BinaryReader br)
+        public static int ReadBEInt32(this BinaryReader br)
         {
-            return (uint)System.Net.IPAddress.HostToNetworkOrder(br.ReadInt32());
+            return System.Net.IPAddress.HostToNetworkOrder(br.ReadInt32());
         }
 
         public static uint ReadUInt24(this BinaryReader br)

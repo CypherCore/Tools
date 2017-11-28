@@ -16,17 +16,15 @@ namespace CASC.Handlers
             readStream = new BinaryReader(data);
         }
 
-        public static MemoryStream LoadBLTEEntry(IndexEntry idxEntry, BinaryReader readStream = null)
+        public static MemoryStream LoadBLTEEntry(IndexEntry idxEntry, BinaryReader readStream = null, bool downloaded = false)
         {
             lock (readLock)
             {
                 if (readStream == null)
                     return null;
 
-                readStream.BaseStream.Position = idxEntry.Offset + 30;
-
-                if (readStream.BaseStream.Position >= readStream.BaseStream.Length)
-                    return null;
+                if (!downloaded)
+                    readStream.BaseStream.Position = idxEntry.Offset + 30;
 
                 if (readStream.ReadUInt32() != 0x45544C42)
                 {
@@ -36,7 +34,7 @@ namespace CASC.Handlers
                 }
 
                 var blte = new BLTEEntry();
-                var frameHeaderLength = readStream.ReadBEUInt32();
+                var frameHeaderLength = readStream.ReadBEInt32();
                 var chunks = 0u;
                 var size = 0L;
 
@@ -63,8 +61,8 @@ namespace CASC.Handlers
                     }
                     else
                     {
-                        blte.Chunks[i].CompressedSize = readStream.ReadBEUInt32();
-                        blte.Chunks[i].UncompressedSize = readStream.ReadBEUInt32();
+                        blte.Chunks[i].CompressedSize = readStream.ReadBEInt32();
+                        blte.Chunks[i].UncompressedSize = readStream.ReadBEInt32();
 
                         // Skip MD5 hash
                         readStream.BaseStream.Position += 16;

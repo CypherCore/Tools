@@ -15,7 +15,7 @@ namespace CASC.Handlers
 
         List<IndexFile> idxFiles = new List<IndexFile>();
         List<string> indexFiles = new List<string>();
-        Dictionary<uint, DataFile> dataFiles = new Dictionary<uint, DataFile>();
+        Dictionary<int, DataFile> dataFiles = new Dictionary<int, DataFile>();
 
         public BuildInfo buildInfo;
         BuildConfig buildConfig;
@@ -25,6 +25,8 @@ namespace CASC.Handlers
         RootFile rootFile;
 
         Lookup3 lookup3;
+
+        LocaleMask currentLocale;
 
         public CASCHandler(string basePath)
         {
@@ -57,7 +59,7 @@ namespace CASC.Handlers
             foreach (var f in Directory.GetFiles(BasePath + "/Data/data", "data.*"))
             {
                 var dataFile = new DataFile(File.OpenRead(f));
-                var index = Convert.ToUInt32(Path.GetExtension(f).Remove(0, 1));
+                var index = Convert.ToInt32(Path.GetExtension(f).Remove(0, 1));
 
                 dataFiles.Add(index, dataFile);
             }
@@ -143,11 +145,11 @@ namespace CASC.Handlers
             }
         }
 
-        public MemoryStream ReadFile(RootEntry[] rootEntries, LocaleMask locales = LocaleMask.enUS)
+        public MemoryStream ReadFile(RootEntry[] rootEntries)
         {
             for (var i = 0; i < rootEntries.Length; i++)
             {
-                if ((rootEntries[i].Locales & locales) == locales)
+                if ((rootEntries[i].Locales & currentLocale) == currentLocale)
                 {
                     var encodingEntry = encodingFile[rootEntries[i].MD5];
 
@@ -187,7 +189,7 @@ namespace CASC.Handlers
                             foreach (var k in encodingEntry.Keys)
                             {
                                 if ((idxEntry = idxFiles[j][k]).Size != 0)
-                                    return DataFile.LoadBLTEEntry(idxEntry, cdnConfig.DownloadFile(indexFiles[idxEntry.Index], idxEntry));
+                                    return DataFile.LoadBLTEEntry(idxEntry, cdnConfig.DownloadFile(indexFiles[idxEntry.Index], idxEntry), true);
                             }
 
                             if (idxEntry.Size != 0)
@@ -200,19 +202,19 @@ namespace CASC.Handlers
             return null;
         }
 
-        public MemoryStream ReadFile(int fileDataId, LocaleMask locales = LocaleMask.enUS)
+        public MemoryStream ReadFile(int fileDataId)
         {
-            return ReadFile(rootFile[fileDataId], locales);
+            return ReadFile(rootFile[fileDataId]);
         }
 
-        public MemoryStream ReadFile(string name, LocaleMask locales = LocaleMask.enUS)
+        public MemoryStream ReadFile(string name)
         {
             var hash = lookup3.Hash(name.ToUpperInvariant());
 
-            return ReadFile(rootFile[hash], locales);
+            return ReadFile(rootFile[hash]);
         }
 
-        public IEnumerable<Tuple<ulong, MemoryStream>> ReadFile(LocaleMask locales = LocaleMask.enUS)
+        public IEnumerable<Tuple<ulong, MemoryStream>> ReadFile()
         {
             foreach (var entry in rootFile.Entries)
             {
@@ -220,7 +222,7 @@ namespace CASC.Handlers
 
                 for (var i = 0; i < rootEntries.Length; i++)
                 {
-                    if ((rootEntries[i].Locales & locales) == locales)
+                    if ((rootEntries[i].Locales & currentLocale) == currentLocale)
                     {
                         var encodingEntry = encodingFile[rootEntries[i].MD5];
 
@@ -258,7 +260,7 @@ namespace CASC.Handlers
                                     foreach (var k in encodingEntry.Keys)
                                     {
                                         if ((idxEntry = idxFiles[j][k]).Size != 0)
-                                            yield return Tuple.Create(entry.Key, DataFile.LoadBLTEEntry(idxEntry, cdnConfig.DownloadFile(indexFiles[idxEntry.Index], idxEntry)));
+                                            yield return Tuple.Create(entry.Key, DataFile.LoadBLTEEntry(idxEntry, cdnConfig.DownloadFile(indexFiles[idxEntry.Index], idxEntry), true));
                                     }
 
                                     if (idxEntry.Size != 0)
@@ -273,7 +275,7 @@ namespace CASC.Handlers
             //return null;
         }
 
-        public ConcurrentDictionary<ulong, MemoryStream> ReadFiles(byte[] signature, LocaleMask locales = LocaleMask.enUS)
+        public ConcurrentDictionary<ulong, MemoryStream> ReadFiles(byte[] signature)
         {
             var files = new ConcurrentDictionary<ulong, MemoryStream>();
 
@@ -283,7 +285,7 @@ namespace CASC.Handlers
 
                 for (var i = 0; i < rootEntries.Length; i++)
                 {
-                    if ((rootEntries[i].Locales & locales) == locales)
+                    if ((rootEntries[i].Locales & currentLocale) == currentLocale)
                     {
                         var encodingEntry = encodingFile[rootEntries[i].MD5];
 
@@ -325,7 +327,7 @@ namespace CASC.Handlers
                                     if ((idxEntry = idxFiles[j][k]).Size != 0)
                                     {
                                         var sigBuffer = new byte[signature.Length];
-                                        var stream = DataFile.LoadBLTEEntry(idxEntry, cdnConfig.DownloadFile(indexFiles[idxEntry.Index], idxEntry));
+                                        var stream = DataFile.LoadBLTEEntry(idxEntry, cdnConfig.DownloadFile(indexFiles[idxEntry.Index], idxEntry), true);
 
                                         stream?.Read(sigBuffer, 0, sigBuffer.Length);
 
@@ -345,10 +347,10 @@ namespace CASC.Handlers
             return files;
         }
 
-        public IEnumerable<Tuple<string, MemoryStream>> ReadFiles(string[] names, LocaleMask locales = LocaleMask.enUS)
+        public IEnumerable<Tuple<string, MemoryStream>> ReadFiles(string[] names)
         {
             for (var i = 0; i < names.Length; i++)
-                yield return Tuple.Create(names[i], ReadFile(names[i], locales));
+                yield return Tuple.Create(names[i], ReadFile(names[i]));
         }
 
         public uint GetBuildNumber()
@@ -371,6 +373,27 @@ namespace CASC.Handlers
             }
 
             return buildNumber;
+        }
+
+        public uint GetInstalledLocalesMask()
+        {
+            uint localeMask = 0;
+
+            string[] lines = buildInfo["Tags"].Split(' ');
+            foreach (var line in lines)
+            {
+                if (!Enum.TryParse(typeof(LocaleMask), line, out object locale))
+                    continue;
+
+                localeMask = localeMask | Convert.ToUInt32(locale);
+            }
+
+            return localeMask;
+        }
+
+        public void SetLocale(LocaleMask localeMask)
+        {
+            currentLocale = localeMask;
         }
 
     }

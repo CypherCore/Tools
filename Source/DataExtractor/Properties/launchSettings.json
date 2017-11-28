@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DataExtractor": {
+      "commandName": "Project",
+      "workingDirectory": "D:\\wowLegion"
+    }
+  }
+}

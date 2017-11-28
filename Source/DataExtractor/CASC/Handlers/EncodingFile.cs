@@ -34,11 +34,11 @@ namespace CASC.Handlers
 
             blteEntry.BaseStream.Position = 9;
 
-            var entries = blteEntry.ReadBEUInt32();
+            var entries = blteEntry.ReadBEInt32();
 
             blteEntry.BaseStream.Position += 5;
 
-            var offsetEntries = blteEntry.ReadBEUInt32();
+            var offsetEntries = blteEntry.ReadBEInt32();
 
             blteEntry.BaseStream.Position += offsetEntries + (entries << 5);
 
@@ -51,7 +51,7 @@ namespace CASC.Handlers
                     var encodingEntry = new EncodingEntry
                     {
                         Keys = new byte[keys][],
-                        Size = blteEntry.ReadBEUInt32()
+                        Size = (uint)blteEntry.ReadBEInt32()
                     };
 
                     var md5 = blteEntry.ReadBytes(16);

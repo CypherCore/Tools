@@ -10,6 +10,7 @@ using CASC.Constants;
 using System.IO;
 using CASC;
 using DataExtractor.ClientReader;
+using System.Globalization;
 
 namespace DataExtractor
 {
@@ -32,7 +33,7 @@ namespace DataExtractor
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Select your task.");
             Console.WriteLine("1 - Extract DB2 and maps");
-            //Console.WriteLine("2 - Extract vmaps(needs maps to be extracted before you run this)");
+            Console.WriteLine("2 - Extract vmaps(needs maps to be extracted before you run this)");
             //Console.WriteLine("3 - Extract mmaps(needs vmaps to be extracted before you run this, may take hours)");
             Console.WriteLine("4 - Extract all(may take hours)");
             Console.WriteLine("5 - EXIT");
@@ -44,35 +45,8 @@ namespace DataExtractor
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("Initializing CASC library...");
             cascHandler = new CASCHandler(Environment.CurrentDirectory);
-            currentDirectory = Environment.CurrentDirectory;
+            baseDirectory = Environment.CurrentDirectory;
             Console.WriteLine("Done.");
-
-            switch (answer)
-            {
-                case "1":
-                    ExtractDbcFiles();
-                    ExtractMaps(cascHandler.GetBuildNumber());
-                    break;
-                case "2":
-                    ExtractVMaps();
-                    break;
-                case "3":
-                    ExtractMMaps();
-                    break;
-                case "4":
-                default:
-                    ExtractDbcFiles();
-                    ExtractMaps(cascHandler.GetBuildNumber());
-                    ExtractVMaps();
-                    ExtractMMaps();
-                    break;
-            }        
-        }
-
-        static void ExtractDbcFiles()
-        {
-            string path = $"{currentDirectory}/dbc";
-            CreateDirectory(path);
 
             List<Locale> locales = new List<Locale>();
             var buildInfoLocales = Regex.Matches(cascHandler.buildInfo["Tags"], " ([A-Za-z]{4}) speech");
@@ -84,22 +58,85 @@ namespace DataExtractor
                     locales.Add(localFlag);
             }
 
-            Console.WriteLine("Extracting db2 files...");
-            uint count = 0;
-            for (int i = 0; i < locales.Count; ++i)
+            LocaleMask installedLocalesMask = (LocaleMask)cascHandler.GetInstalledLocalesMask();
+            LocaleMask firstInstalledLocale = LocaleMask.None;
+
+            for (Locale i = 0; i < Locale.Total; ++i)
             {
-                if (locales[i] == Locale.None)
+                if (i == Locale.None)
                     continue;
 
-                string currentPath = $"{path}/{locales[i]}";
+                if (!Convert.ToBoolean(installedLocalesMask & SharedConst.WowLocaleToCascLocaleFlags[(int)i]))
+                    continue;
+
+                firstInstalledLocale = SharedConst.WowLocaleToCascLocaleFlags[(int)i];
+                break;
+            }
+
+            if (firstInstalledLocale < LocaleMask.None)
+            {
+                Console.WriteLine("No locales detected");
+                return;
+            }
+
+            uint build = cascHandler.GetBuildNumber();
+            if (build == 0)
+            {
+                Console.WriteLine("No build detected");
+                return;
+            }
+
+            Console.WriteLine($"Detected client build: {build}");
+            Console.WriteLine($"Detected client locale: {firstInstalledLocale}");
+
+            cascHandler.SetLocale(firstInstalledLocale);
+            switch (answer)
+            {
+                case "1":
+                    ExtractDbcFiles(installedLocalesMask);
+                    ExtractMaps(build);
+                    break;
+                case "2":
+                    ExtractVMaps();
+                    break;
+                case "3":
+                    ExtractMMaps();
+                    break;
+                case "4":
+                default:
+                    ExtractDbcFiles(installedLocalesMask);
+                    ExtractMaps(build);
+                    ExtractVMaps();
+                    ExtractMMaps();
+                    break;
+            }
+        }
+
+        static void ExtractDbcFiles(LocaleMask localeMask)
+        {
+            string path = $"{baseDirectory}/dbc";
+            CreateDirectory(path);
+
+            Console.WriteLine("Extracting db2 files...");
+            uint count = 0;
+            for (Locale locale = 0; locale < Locale.Total; ++locale)
+            {
+                if (locale == Locale.None)
+                    continue;
+
+                if (!Convert.ToBoolean(localeMask & SharedConst.WowLocaleToCascLocaleFlags[(int)locale]))
+                    continue;
+
+                string currentPath = $"{path}/{locale}";
                 CreateDirectory(currentPath);
 
+                cascHandler.SetLocale(SharedConst.WowLocaleToCascLocaleFlags[(int)locale]);
                 foreach (var fileName in FileList.DBFilesClientList)
                 {
-                    var dbcStream = cascHandler.ReadFile(fileName, SharedConst.WowLocaleToCascLocaleFlags[(int)locales[i]]);
+                    var dbcStream = cascHandler.ReadFile(fileName);
                     if (dbcStream == null)
                     {
-                        Console.WriteLine($"Unable to open file {fileName} in the archive for locale {locales[i]}\n");
+                        Console.WriteLine($"Unable to open file {fileName} in the archive for locale {locale}\n");
                         continue;
                     }
 
@@ -138,7 +175,7 @@ namespace DataExtractor
 
             Console.WriteLine($"Done! ({CameraFileNames.Count} CinematicCameras loaded)\n");
 
-            string path = $"{currentDirectory}/cameras";
+            string path = $"{baseDirectory}/cameras";
             CreateDirectory(path);
 
             // extract M2s
@@ -148,7 +185,7 @@ namespace DataExtractor
                 var cameraStream = cascHandler.ReadFile(cameraFileId);
                 if (cameraStream != null)
                 {
-                    string file = string.Format(path + "/File{0:X8}.xxx", cameraFileId);
+                    string file = path + $"/File{cameraFileId:X8}.xxx";
                     if (!File.Exists(file))
                     {
                         FileWriter.WriteFile(cameraStream, file);
@@ -156,7 +193,7 @@ namespace DataExtractor
                     }
                 }
                 else
-                    Console.WriteLine($"Unable to open file {String.Format("File{0:x8}.xxx", cameraFileId)} in the archive: \n");
+                    Console.WriteLine($"Unable to open file {$"File{cameraFileId:x8}.xxx"} in the archive: \n");
             }
 
             Console.WriteLine($"Extracted {count} Camera files.");
@@ -166,7 +203,7 @@ namespace DataExtractor
         {
             Console.WriteLine("Extracting game tables...\n");
 
-            string path = $"{currentDirectory}/gt";
+            string path = $"{baseDirectory}/gt";
             CreateDirectory(path);
 
             uint count = 0;
@@ -222,7 +259,7 @@ namespace DataExtractor
                 return;
             }
 
-            string path = $"{currentDirectory}/maps";
+            string path = $"{baseDirectory}/maps";
             CreateDirectory(path);
 
             Console.WriteLine("Convert map files\n");
@@ -258,13 +295,47 @@ namespace DataExtractor
 
         static void ExtractVMaps()
         {
-            //CreateDirectory($"{currentDirectory}/Buildings/dir");
-            //CreateDirectory($"{currentDirectory}/Buildings/dir_bin");
+            Console.WriteLine("Extracting Vmap files...");
 
-            //Console.WriteLine("Extracting Vmap files...");
+            /*var TC = Directory.GetFiles($@"C:\Users\Mark\Desktop\Buildings\").Select(Path.GetFileName);
+            var Mine = Directory.GetFiles(wmoDirectory).Select(Path.GetFileName);
+
+            foreach (string file in TC)
+            {
+                if (!Mine.Contains(file))
+                {
+                    Console.WriteLine(file);
+                }
+            }*/
+
+
+            CreateDirectory(wmoDirectory);
 
             // Extract models, listed in GameObjectDisplayInfo.dbc
             //VmapFile.ExtractGameobjectModels();
+
+            Console.WriteLine("Read Map.dbc file... ");
+
+            if (mapStorage == null)
+            {
+                var stream = cascHandler.ReadFile("DBFilesClient\\Map.db2");
+                if (stream == null)
+                {
+                    Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
+                    return;
+                }
+                mapStorage = DB6Reader.Read<MapRecord>(stream, DB6Metas.MapMeta);
+            }
+
+            if (mapStorage == null)
+            {
+                Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
+                return;
+            }
+
+            VmapFile.ParsMapFiles();
+            Console.WriteLine($"Extract V4.03 2015_05. Work complete. No errors.\n");
+            Console.ReadKey();
         }
 
         static void ExtractMMaps()
@@ -280,8 +351,9 @@ namespace DataExtractor
             Directory.CreateDirectory(path);
         }
 
-        static CASCHandler cascHandler;
-        static string currentDirectory;
+        public static CASCHandler cascHandler { get; set; }
+        public static string baseDirectory { get; set; }
+        public static string wmoDirectory { get; set; } = "./Buildings/";
 
         static Dictionary<uint, MapRecord> mapStorage = new Dictionary<uint, MapRecord>();
         public static Dictionary<uint, LiquidTypeRecord> liquidTypeStorage = new Dictionary<uint, LiquidTypeRecord>();

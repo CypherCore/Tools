@@ -45,8 +45,8 @@ namespace CASC.Handlers
                         var entry = new IndexEntry
                         {
                             Index = fileIndex,
-                            Size = br.ReadBEUInt32(),
-                            Offset = br.ReadBEUInt32()
+                            Size = br.ReadBEInt32(),
+                            Offset = br.ReadBEInt32()
                         };
 
                         if (this.entries.ContainsKey(hash))
@@ -60,10 +60,9 @@ namespace CASC.Handlers
             {
                 using (var br = new BinaryReader(File.OpenRead(idx)))
                 {
-                    br.BaseStream.Position = 0x20;
+                    br.BaseStream.Position = (8 + br.ReadInt32() + 0x0F) & 0xFFFFFFF0;
 
                     var dataLength = br.ReadUInt32();
-
                     br.BaseStream.Position += 4;
 
                     // 18 bytes per entry.
@@ -71,13 +70,12 @@ namespace CASC.Handlers
                     {
                         var hash = br.ReadBytes(9);
                         var index = br.ReadByte();
-                        var offset = br.ReadBEUInt32();
+                        var offset = br.ReadBEInt32();
 
                         var entry = new IndexEntry();
-
-                        entry.Size = br.ReadUInt32();
-                        entry.Index = (ushort)((ushort)(index << 2) | (offset >> 30));
-                        entry.Offset = (uint)(offset & 0x3FFFFFFF);
+                        entry.Index = index << 2 | (byte)((offset & 0xC0000000) >> 30);
+                        entry.Offset = (int)(offset & 0x3FFFFFFF);
+                        entry.Size = br.ReadInt32();
 
                         if (entries.ContainsKey(hash))
                             continue;
