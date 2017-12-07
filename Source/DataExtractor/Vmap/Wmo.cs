@@ -1,11 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Numerics;
+﻿/*
+ * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-namespace DataExtractor
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Framework.GameMath;
+using Framework.Constants;
+
+namespace DataExtractor.Vmap
 {
     class WMORoot
     {
@@ -76,7 +92,7 @@ namespace DataExtractor
         {
             //printf("Convert RootWmo...\n");
 
-            writer.WriteCString("VMAP045");
+            writer.WriteCString(SharedConst.RAW_VMAP_MAGIC);
             writer.Write(0); // will be filled later
             writer.Write(nGroups);
             writer.Write(RootWMOID);
@@ -448,22 +464,22 @@ namespace DataExtractor
 
         struct WMOLiquidHeader
         {
-            public int xverts;
-            public int yverts;
-            public int xtiles;
-            public int ytiles;
-            public float pos_x;
-            public float pos_y;
-            public float pos_z;
-            public short type;
+            public int xverts { get; set; }
+            public int yverts { get; set; }
+            public int xtiles { get; set; }
+            public int ytiles { get; set; }
+            public float pos_x { get; set; }
+            public float pos_y { get; set; }
+            public float pos_z { get; set; }
+            public short type { get; set; }
         }
 
         struct WMOLiquidVert
         {
-            public ushort unk1;
-            public ushort unk2;
-            public float height;
-        };
+            public ushort unk1 { get; set; }
+            public ushort unk2 { get; set; }
+            public float height { get; set; }
+        }
     }
 
     class WMOInstance
@@ -495,61 +511,51 @@ namespace DataExtractor
             }
 
             //-----------add_in _dir_file----------------
-            using (var fs = new FileStream(Program.wmoDirectory + WmoInstName, FileMode.Open, FileAccess.Read))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + WmoInstName, FileMode.Open, FileAccess.Read)))
             {
-                using (BinaryReader inputReader = new BinaryReader(fs))
+                binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
+                int nVertices = binaryReader.ReadInt32();
+                if (nVertices == 0)
+                    return;
+
+                float x = pos.X;
+                float z = pos.Z;
+                if (x == 0 && z == 0)
                 {
-                    inputReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
-                    int nVertices = inputReader.ReadInt32();
-                    if (nVertices == 0)
-                        return;
-
-                    float x = pos.X;
-                    float z = pos.Z;
-                    if (x == 0 && z == 0)
-                    {
-                        pos.X = 533.33333f * 32;
-                        pos.Z = 533.33333f * 32;
-                    }
-                    pos = fixCoords(pos);
-                    pos2 = fixCoords(pos2);
-                    pos3 = fixCoords(pos3);
-
-                    float scale = 1.0f;
-                    uint flags = 1u << 2; //hasbound
-                    if (tileX == 65 && tileY == 65) flags |= 1 << 1; //worldspawn
-                    //write mapID, tileX, tileY, Flags, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
-                    writer.Write(mapID);
-                    writer.Write(tileX);
-                    writer.Write(tileY);
-                    writer.Write(flags);
-                    writer.Write(adtId);
-                    writer.Write(id);
-                    writer.WriteVector3(pos);
-                    writer.WriteVector3(rot);
-                    writer.Write(scale);
-                    writer.WriteVector3(pos2);
-                    writer.WriteVector3(pos3);
-                    writer.Write(WmoInstName.Length);
-                    writer.Write(WmoInstName);
+                    pos.X = 533.33333f * 32;
+                    pos.Z = 533.33333f * 32;
                 }
+                pos = fixCoords(pos);
+                pos2 = fixCoords(pos2);
+                pos3 = fixCoords(pos3);
+
+                float scale = 1.0f;
+                uint flags = 1u << 2; //hasbound
+                if (tileX == 65 && tileY == 65)
+                    flags |= 1 << 1; //worldspawn
+                                     //write mapID, tileX, tileY, Flags, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+                writer.Write(mapID);
+                writer.Write(tileX);
+                writer.Write(tileY);
+                writer.Write(flags);
+                writer.Write(adtId);
+                writer.Write(id);
+                writer.WriteVector3(pos);
+                writer.WriteVector3(rot);
+                writer.Write(scale);
+                writer.WriteVector3(pos2);
+                writer.WriteVector3(pos3);
+                writer.Write(WmoInstName.Length);
+                writer.WriteString(WmoInstName);
             }
         }
 
         Vector3 fixCoords(Vector3 v) { return new Vector3(v.Z, v.X, v.Y); }
 
-        static List<int> ids = new List<int>();
-
-        string MapName;
-        int currx;
-        int curry;
-        WMOGroup wmo;
-        int doodadset;
         Vector3 pos;
         Vector3 pos2;
         Vector3 pos3;
         Vector3 rot;
-        uint indx;
         uint id;
     }
 }

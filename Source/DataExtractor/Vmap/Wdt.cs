@@ -1,9 +1,25 @@
-﻿using System;
+﻿/*
+ * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
 
-namespace DataExtractor
+namespace DataExtractor.Vmap
 {
     class WDTFile
     {
@@ -14,59 +30,56 @@ namespace DataExtractor
                 return false;
 
             string dirname = Program.wmoDirectory + "dir_bin";
-            using (var fs = new FileStream(dirname, FileMode.Append, FileAccess.Write, FileShare.ReadWrite, 4096, true))
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
             {
-                using (BinaryWriter dirfile = new BinaryWriter(fs))
+                using (BinaryReader binaryReader = new BinaryReader(stream))
                 {
-                    using (BinaryReader reader = new BinaryReader(stream))
+                    while (binaryReader.BaseStream.Position < binaryReader.BaseStream.Length)
                     {
-                        while (reader.BaseStream.Position < reader.BaseStream.Length)
+                        string fourcc = binaryReader.ReadStringFromChars(4, true);
+                        uint size = binaryReader.ReadUInt32();
+
+                        long nextpos = binaryReader.BaseStream.Position + size;
+
+                        if (fourcc == "MAIN")
                         {
-                            string fourcc = reader.ReadStringFromChars(4, true);
-                            uint size = reader.ReadUInt32();
-
-                            long nextpos = reader.BaseStream.Position + size;
-
-                            if (fourcc == "MAIN")
-                            {
-                            }
-                            if (fourcc == "MWMO")
-                            {
-                                // global map objects
-                                if (size != 0)
-                                {
-                                    while (size > 0)
-                                    {
-                                        string path = reader.ReadCString();
-
-                                        gWmoInstansName.Add(path.GetPlainName());
-                                        VmapFile.ExtractSingleWmo(path);
-
-                                        size -= (uint)(path.Length + 1);
-                                    }
-                                }
-                            }
-                            else if (fourcc == "MODF")
-                            {
-                                // global wmo instance data
-                                if (size != 0)
-                                {
-                                    gnWMO = (int)size / 64;
-
-                                    for (int i = 0; i < gnWMO; ++i)
-                                    {
-                                        int id = reader.ReadInt32();
-                                        WMOInstance inst = new WMOInstance(reader, gWmoInstansName[id], mapID, 65, 65, dirfile);
-                                    }
-                                }
-                            }
-
-                            reader.BaseStream.Seek(nextpos, SeekOrigin.Begin);
                         }
-                    }
+                        if (fourcc == "MWMO")
+                        {
+                            // global map objects
+                            if (size != 0)
+                            {
+                                while (size > 0)
+                                {
+                                    string path = binaryReader.ReadCString();
 
+                                    gWmoInstansName.Add(path.GetPlainName());
+                                    VmapFile.ExtractSingleWmo(path);
+
+                                    size -= (uint)(path.Length + 1);
+                                }
+                            }
+                        }
+                        else if (fourcc == "MODF")
+                        {
+                            // global wmo instance data
+                            if (size != 0)
+                            {
+                                gnWMO = (int)size / 64;
+
+                                for (int i = 0; i < gnWMO; ++i)
+                                {
+                                    int id = binaryReader.ReadInt32();
+                                    WMOInstance inst = new WMOInstance(binaryReader, gWmoInstansName[id], mapID, 65, 65, binaryWriter);
+                                }
+                            }
+                        }
+
+                        binaryReader.BaseStream.Seek(nextpos, SeekOrigin.Begin);
+                    }
                 }
             }
+
             return true;
         }
 

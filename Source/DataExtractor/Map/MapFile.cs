@@ -1,13 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿/*
+ * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+using System;
 using System.Text;
-using System.Threading.Tasks;
 using System.IO;
-using CASC.Handlers;
+using Framework.CASC.Handlers;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization.Formatters.Binary;
-using CASC;
+using Framework.Constants;
 
 namespace DataExtractor
 {
@@ -608,101 +621,98 @@ namespace DataExtractor
                 map.holesSize = 0;
 
             // Ok all data prepared - store it
-            using (var fs = new FileStream(outputPath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, true))
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(outputPath, FileMode.Create, FileAccess.Write)))
             {
-                using (BinaryWriter binaryWriter = new BinaryWriter(fs))
+                binaryWriter.WriteStruct(map);
+                // Store area data
+                binaryWriter.WriteStruct(areaHeader);
+                if (!Convert.ToBoolean(areaHeader.flags & 0x0001))
                 {
-                    binaryWriter.WriteStruct(map);
-                    // Store area data
-                    binaryWriter.WriteStruct(areaHeader);
-                    if (!Convert.ToBoolean(areaHeader.flags & 0x0001))
+                    for (var x = 0; x < area_ids.Length; ++x)
+                        for (var y = 0; y < area_ids[x].Length; ++y)
+                            binaryWriter.Write(area_ids[x][y]);
+                }
+
+                // Store height data
+                binaryWriter.WriteStruct(heightHeader);
+                if (!Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.NoHeight))
+                {
+                    if (Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.AsInt16))
                     {
-                        for (var x = 0; x < area_ids.Length; ++x)
-                            for (var y = 0; y < area_ids[x].Length; ++y)
-                                binaryWriter.Write(area_ids[x][y]);
+                        for (var x = 0; x < uint16_V9.Length; ++x)
+                            for (var y = 0; y < uint16_V9[x].Length; ++y)
+                                binaryWriter.Write(uint16_V9[x][y]);
+
+                        for (var x = 0; x < uint16_V8.Length; ++x)
+                            for (var y = 0; y < uint16_V8[x].Length; ++y)
+                                binaryWriter.Write(uint16_V8[x][y]);
                     }
-
-                    // Store height data
-                    binaryWriter.WriteStruct(heightHeader);
-                    if (!Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.NoHeight))
+                    else if (Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.AsInt8))
                     {
-                        if (Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.AsInt16))
-                        {
-                            for (var x = 0; x < uint16_V9.Length; ++x)
-                                for (var y = 0; y < uint16_V9[x].Length; ++y)
-                                    binaryWriter.Write(uint16_V9[x][y]);
+                        for (var x = 0; x < uint8_V9.Length; ++x)
+                            for (var y = 0; y < uint8_V9[x].Length; ++y)
+                                binaryWriter.Write(uint8_V9[x][y]);
 
-                            for (var x = 0; x < uint16_V8.Length; ++x)
-                                for (var y = 0; y < uint16_V8[x].Length; ++y)
-                                    binaryWriter.Write(uint16_V8[x][y]);
-                        }
-                        else if (Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.AsInt8))
-                        {
-                            for (var x = 0; x < uint8_V9.Length; ++x)
-                                for (var y = 0; y < uint8_V9[x].Length; ++y)
-                                    binaryWriter.Write(uint8_V9[x][y]);
-
-                            for (var x = 0; x < uint8_V8.Length; ++x)
-                                for (var y = 0; y < uint8_V8[x].Length; ++y)
-                                    binaryWriter.Write(uint8_V8[x][y]);
-                        }
-                        else
-                        {
-                            for (var x = 0; x < V9.Length; ++x)
-                                for (var y = 0; y < V9[x].Length; ++y)
-                                    binaryWriter.Write(V9[x][y]);
-
-                            for (var x = 0; x < V8.Length; ++x)
-                                for (var y = 0; y < V8[x].Length; ++y)
-                                    binaryWriter.Write(V8[x][y]);
-                        }
+                        for (var x = 0; x < uint8_V8.Length; ++x)
+                            for (var y = 0; y < uint8_V8[x].Length; ++y)
+                                binaryWriter.Write(uint8_V8[x][y]);
                     }
-
-                    if (Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.HasFlightBounds))
+                    else
                     {
-                        for (var x = 0; x < 3; ++x)
-                            for (var y = 0; y < 3; ++y)
-                                binaryWriter.Write(flight_box_max[x][y]);
+                        for (var x = 0; x < V9.Length; ++x)
+                            for (var y = 0; y < V9[x].Length; ++y)
+                                binaryWriter.Write(V9[x][y]);
 
-                        for (var x = 0; x < 3; ++x)
-                            for (var y = 0; y < 3; ++y)
-                                binaryWriter.Write(flight_box_min[x][y]);
-                    }
-
-                    // Store liquid data if need
-                    if (map.liquidMapOffset != 0)
-                    {
-                        binaryWriter.WriteStruct(mapLiquidHeader);
-                        if (!Convert.ToBoolean(mapLiquidHeader.flags & 0x0001))
-                        {
-                            for (var x = 0; x < liquid_entry.Length; ++x)
-                                for (var y = 0; y < liquid_entry[x].Length; ++y)
-                                    binaryWriter.Write(liquid_entry[x][y]);
-
-                            for (var x = 0; x < liquid_flags.Length; ++x)
-                                for (var y = 0; y < liquid_flags[x].Length; ++y)
-                                    binaryWriter.Write(liquid_flags[x][y]);
-                        }
-
-                        if (!Convert.ToBoolean(mapLiquidHeader.flags & 0x0002))
-                        {
-                            for (int y = 0; y < mapLiquidHeader.height; y++)
-                                for (int x = 0; x < mapLiquidHeader.width; x++)
-                                    binaryWriter.Write(liquid_height[y + mapLiquidHeader.offsetY][x + mapLiquidHeader.offsetX]);
-                        }
-                    }
-
-                    // store hole data
-                    if (hasHoles)
-                    {
-                        for (var x = 0; x < holes.Length; ++x)
-                            for (var y = 0; y < holes[x].Length; ++y)
-                                for (var z = 0; z < holes[x][y].Length; ++z)
-                                    binaryWriter.Write(holes[x][y][z]);
+                        for (var x = 0; x < V8.Length; ++x)
+                            for (var y = 0; y < V8[x].Length; ++y)
+                                binaryWriter.Write(V8[x][y]);
                     }
                 }
 
+                if (Convert.ToBoolean(heightHeader.flags & (uint)MapHeightFlags.HasFlightBounds))
+                {
+                    for (var x = 0; x < 3; ++x)
+                        for (var y = 0; y < 3; ++y)
+                            binaryWriter.Write(flight_box_max[x][y]);
+
+                    for (var x = 0; x < 3; ++x)
+                        for (var y = 0; y < 3; ++y)
+                            binaryWriter.Write(flight_box_min[x][y]);
+                }
+
+                // Store liquid data if need
+                if (map.liquidMapOffset != 0)
+                {
+                    binaryWriter.WriteStruct(mapLiquidHeader);
+                    if (!Convert.ToBoolean(mapLiquidHeader.flags & 0x0001))
+                    {
+                        for (var x = 0; x < liquid_entry.Length; ++x)
+                            for (var y = 0; y < liquid_entry[x].Length; ++y)
+                                binaryWriter.Write(liquid_entry[x][y]);
+
+                        for (var x = 0; x < liquid_flags.Length; ++x)
+                            for (var y = 0; y < liquid_flags[x].Length; ++y)
+                                binaryWriter.Write(liquid_flags[x][y]);
+                    }
+
+                    if (!Convert.ToBoolean(mapLiquidHeader.flags & 0x0002))
+                    {
+                        for (int y = 0; y < mapLiquidHeader.height; y++)
+                            for (int x = 0; x < mapLiquidHeader.width; x++)
+                                binaryWriter.Write(liquid_height[y + mapLiquidHeader.offsetY][x + mapLiquidHeader.offsetX]);
+                    }
+                }
+
+                // store hole data
+                if (hasHoles)
+                {
+                    for (var x = 0; x < holes.Length; ++x)
+                        for (var y = 0; y < holes[x].Length; ++y)
+                            for (var z = 0; z < holes[x][y].Length; ++z)
+                                binaryWriter.Write(holes[x][y][z]);
+                }
             }
+
             return true;
         }
 
@@ -769,16 +779,16 @@ namespace DataExtractor
     
     struct adt_liquid_header
     {
-        public ushort liquidType;             // Index from LiquidType.dbc
-        public ushort formatFlags;
-        public float heightLevel1;
-        public float heightLevel2;
-        public byte xOffset;
-        public byte yOffset;
-        public byte width;
-        public byte height;
-        public uint offsData2a;
-        public uint offsData2b;
+        public ushort liquidType { get; set; }             // Index from LiquidType.dbc
+        public ushort formatFlags { get; set; }
+        public float heightLevel1 { get; set; }
+        public float heightLevel2 { get; set; }
+        public byte xOffset { get; set; }
+        public byte yOffset { get; set; }
+        public byte width { get; set; }
+        public byte height { get; set; }
+        public uint offsData2a { get; set; }
+        public uint offsData2b { get; set; }
     }
 
     interface IMapStruct
@@ -811,8 +821,8 @@ namespace DataExtractor
 
         public struct adtData
         {
-            public uint flag;
-            public uint data1;
+            public uint flag { get; set; }
+            public uint data1 { get; set; }
         }
     }
 
@@ -947,8 +957,6 @@ namespace DataExtractor
 
         public uint fourcc;
         public uint size;
-        public float height1;
-        public float height2;
 
         public liquid_data[][] liquid = new liquid_data[MapFile.ADT_CELL_SIZE + 1][];
 
@@ -963,8 +971,8 @@ namespace DataExtractor
 
         public struct liquid_data
         {
-            public uint light;
-            public float height;
+            public uint light { get; set; }
+            public float height { get; set; }
         }
     }
     
@@ -995,9 +1003,9 @@ namespace DataExtractor
 
         public struct adt_LIQUID
         {
-            public uint offsData1;
-            public uint used;
-            public uint offsData2;
+            public uint offsData1 { get; set; }
+            public uint used { get; set; }
+            public uint offsData2 { get; set; }
         }
 
         public adt_liquid_header? getLiquidData(int x, int y)

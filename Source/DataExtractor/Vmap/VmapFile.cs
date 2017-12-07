@@ -1,13 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using CASC.Handlers;
-using DataExtractor.ClientReader;
-using System.IO;
-using CASC;
-using System.Linq;
+﻿/*
+ * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-namespace DataExtractor
+using System;
+using System.Text;
+using Framework.ClientReader;
+using System.IO;
+using DataExtractor.Vmap.Collision;
+
+namespace DataExtractor.Vmap
 {
     class VmapFile
     {
@@ -29,35 +43,32 @@ namespace DataExtractor
             }
 
             string modelListPath = Program.wmoDirectory + "temp_gameobject_models";
-            using (var fs = new FileStream(modelListPath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, true))
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(modelListPath, FileMode.Create, FileAccess.Write)))
             {
-                using (BinaryWriter writer = new BinaryWriter(fs))
+                foreach (var record in GameObjectDisplayInfoStorage.Values)
                 {
-                    foreach (var record in GameObjectDisplayInfoStorage.Values)
+                    uint fileId = record.FileDataID;
+                    if (fileId == 0)
+                        continue;
+
+                    bool result = false;
+                    string header;
+                    if (!GetHeaderMagic(fileId, out header))
+                        continue;
+
+                    string fileName = $"File{fileId:X8}.xxx";
+                    if (header == "REVM")
+                        result = ExtractSingleWmo(fileId);
+                    else if (header == "MD20" || header == "MD21")
+                        result = ExtractSingleModel(fileId);
+                    //else
+                    //ASSERT(false, "%s header: %d - %c%c%c%c", fileId, header, (header >> 24) & 0xFF, (header >> 16) & 0xFF, (header >> 8) & 0xFF, header & 0xFF);
+
+                    if (result)
                     {
-                        uint fileId = record.FileDataID;
-                        if (fileId == 0)
-                            continue;
-
-                        bool result = false;
-                        string header;
-                        if (!GetHeaderMagic(fileId, out header))
-                            continue;
-
-                        string fileName = $"File{fileId:X8}.xxx";
-                        if (header == "REVM")
-                            result = ExtractSingleWmo(fileId);
-                        else if (header == "MD20" || header == "MD21")
-                            result = ExtractSingleModel(fileId);
-                        //else
-                        //ASSERT(false, "%s header: %d - %c%c%c%c", fileId, header, (header >> 24) & 0xFF, (header >> 16) & 0xFF, (header >> 8) & 0xFF, header & 0xFF);
-
-                        if (result)
-                        {
-                            writer.Write(record.Id);
-                            writer.Write(fileName.Length);
-                            writer.Write(fileName);
-                        }
+                        binaryWriter.Write(record.Id);
+                        binaryWriter.Write(fileName.Length);
+                        binaryWriter.WriteString(fileName);
                     }
                 }
             }
@@ -109,24 +120,6 @@ namespace DataExtractor
             if (File.Exists(Program.wmoDirectory + fileName))
                 return true;
 
-            int p = 0;
-            // Select root wmo files
-            /*char const* rchr = strrchr(plain_name, '_');
-            if (rchr != NULL)
-            {
-                char cpy[4];
-                memcpy(cpy, rchr, 4);
-                for (int i = 0; i < 4; ++i)
-                {
-                    int m = cpy[i];
-                    if (isdigit(m))
-                        p++;
-                }
-            }*/
-
-            if (p == 3)
-                return true;
-
             bool file_ok = true;
             Console.WriteLine($"Extracting {fileName}");
             WMORoot froot = new WMORoot();
@@ -136,34 +129,32 @@ namespace DataExtractor
                 return true;
             }
 
-            using (var fs = new FileStream(Program.wmoDirectory + fileName, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, true))
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(Program.wmoDirectory + fileName, FileMode.Create, FileAccess.Write)))
             {
-                using (BinaryWriter writer = new BinaryWriter(fs))
+                froot.ConvertToVMAPRootWmo(binaryWriter);
+                int Wmo_nVertices = 0;
+                //printf("root has %d groups\n", froot->nGroups);
+                for (int i = 0; i < froot.groupFileDataIDs.Count; ++i)
                 {
-                    froot.ConvertToVMAPRootWmo(writer);
-                    int Wmo_nVertices = 0;
-                    //printf("root has %d groups\n", froot->nGroups);
-                    for (int i = 0; i < froot.groupFileDataIDs.Count; ++i)
+                    WMOGroup fgroup = new WMOGroup();
+                    if (!fgroup.open(froot.groupFileDataIDs[i]))
                     {
-                        WMOGroup fgroup = new WMOGroup();
-                        if (!fgroup.open(froot.groupFileDataIDs[i]))
-                        {
-                            Console.WriteLine($"Could not open all Group file for: {fileId.ToString()}");
-                            file_ok = false;
-                            break;
-                        }
-
-                        Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(writer, froot, false);// preciseVectorData);
+                        Console.WriteLine($"Could not open all Group file for: {fileId.ToString()}");
+                        file_ok = false;
+                        break;
                     }
 
-                    writer.Seek(8, SeekOrigin.Begin); // store the correct no of vertices
-                    writer.Write(Wmo_nVertices);
-
-                    // Delete the extracted file in the case of an error
-                    if (!file_ok)
-                        File.Delete(Program.wmoDirectory + fileName);
+                    Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(binaryWriter, froot, false);// preciseVectorData);
                 }
+
+                binaryWriter.Seek(8, SeekOrigin.Begin); // store the correct no of vertices
+                binaryWriter.Write(Wmo_nVertices);
+
+                // Delete the extracted file in the case of an error
+                if (!file_ok)
+                    File.Delete(Program.wmoDirectory + fileName);
             }
+
             return true;
         }
 
@@ -203,34 +194,32 @@ namespace DataExtractor
                 return true;
             }
 
-            using (var fs = new FileStream(Program.wmoDirectory + plainName, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, true))
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(Program.wmoDirectory + plainName, FileMode.Create, FileAccess.Write)))
             {
-                using (BinaryWriter writer = new BinaryWriter(fs))
+                froot.ConvertToVMAPRootWmo(binaryWriter);
+                int Wmo_nVertices = 0;
+                //printf("root has %d groups\n", froot->nGroups);
+                for (int i = 0; i < froot.groupFileDataIDs.Count; ++i)
                 {
-                    froot.ConvertToVMAPRootWmo(writer);
-                    int Wmo_nVertices = 0;
-                    //printf("root has %d groups\n", froot->nGroups);
-                    for (int i = 0; i < froot.groupFileDataIDs.Count; ++i)
+                    WMOGroup fgroup = new WMOGroup();
+                    if (!fgroup.open(froot.groupFileDataIDs[i]))
                     {
-                        WMOGroup fgroup = new WMOGroup();
-                        if (!fgroup.open(froot.groupFileDataIDs[i]))
-                        {
-                            Console.WriteLine($"Could not open all Group file for: {plainName}");
-                            file_ok = false;
-                            break;
-                        }
-
-                        Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(writer, froot, false);// preciseVectorData);
+                        Console.WriteLine($"Could not open all Group file for: {plainName}");
+                        file_ok = false;
+                        break;
                     }
 
-                    writer.Seek(8, SeekOrigin.Begin); // store the correct no of vertices
-                    writer.Write(Wmo_nVertices);
-
-                    // Delete the extracted file in the case of an error
-                    if (!file_ok)
-                        File.Delete(Program.wmoDirectory + fileName);
+                    Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(binaryWriter, froot, false);// preciseVectorData);
                 }
+
+                binaryWriter.Seek(8, SeekOrigin.Begin); // store the correct no of vertices
+                binaryWriter.Write(Wmo_nVertices);
+
+                // Delete the extracted file in the case of an error
+                if (!file_ok)
+                    File.Delete(Program.wmoDirectory + fileName);
             }
+
             return true;
         }
 
@@ -255,12 +244,7 @@ namespace DataExtractor
                 fileName += "2";
             }
 
-            string name = fileName.GetPlainName();
-            if (name == "6Du_Highmaulraid_Arena_Elevator.m2")
-            {
-
-            }
-            string outputFile = Program.wmoDirectory + name;
+            string outputFile = Program.wmoDirectory + fileName.GetPlainName();
             if (File.Exists(outputFile))
                 return true;
 

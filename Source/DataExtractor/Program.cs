@@ -1,16 +1,31 @@
-﻿using System;
+﻿/*
+ * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+using Framework.CASC.Constants;
+using Framework.CASC.Handlers;
+using Framework.ClientReader;
+using Framework.Constants;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using CASC.Handlers;
-using DataExtractor.Constants;
-using System.Text.RegularExpressions;
-using CASC.Constants;
 using System.IO;
-using CASC;
-using DataExtractor.ClientReader;
-using System.Globalization;
+using System.Text.RegularExpressions;
+using DataExtractor.Vmap.Collision;
+using DataExtractor.Vmap;
+using Framework.CASC;
 
 namespace DataExtractor
 {
@@ -30,13 +45,7 @@ namespace DataExtractor
             Console.WriteLine(@"               \/__/  \/_/    Core Data Extractor");
             Console.WriteLine("\r");
 
-            Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("Select your task.");
-            Console.WriteLine("1 - Extract DB2 and maps");
-            Console.WriteLine("2 - Extract vmaps(needs maps to be extracted before you run this)");
-            //Console.WriteLine("3 - Extract mmaps(needs vmaps to be extracted before you run this, may take hours)");
-            Console.WriteLine("4 - Extract all(may take hours)");
-            Console.WriteLine("5 - EXIT");
+            PrintInstructions();
 
             string answer = Console.ReadLine();
             if (answer == "5")
@@ -89,27 +98,45 @@ namespace DataExtractor
             Console.WriteLine($"Detected client build: {build}");
             Console.WriteLine($"Detected client locale: {firstInstalledLocale}");
 
-            cascHandler.SetLocale(firstInstalledLocale);
-            switch (answer)
+            do
             {
-                case "1":
-                    ExtractDbcFiles(installedLocalesMask);
-                    ExtractMaps(build);
-                    break;
-                case "2":
-                    ExtractVMaps();
-                    break;
-                case "3":
-                    ExtractMMaps();
-                    break;
-                case "4":
-                default:
-                    ExtractDbcFiles(installedLocalesMask);
-                    ExtractMaps(build);
-                    ExtractVMaps();
-                    ExtractMMaps();
-                    break;
-            }
+                cascHandler.SetLocale(firstInstalledLocale);
+                switch (answer)
+                {
+                    case "1":
+                        ExtractDbcFiles(installedLocalesMask);
+                        ExtractMaps(build);
+                        break;
+                    case "2":
+                        ExtractVMaps();
+                        break;
+                    case "3":
+                        ExtractMMaps();
+                        break;
+                    case "4":
+                    default:
+                        ExtractDbcFiles(installedLocalesMask);
+                        ExtractMaps(build);
+                        ExtractVMaps();
+                        ExtractMMaps();
+                        break;
+                }
+
+                PrintInstructions();
+            } while ((answer = Console.ReadLine()) != "5");
+        }
+
+        static void PrintInstructions()
+        {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Select your task.");
+            Console.WriteLine("1 - Extract DB2 and maps");
+            Console.WriteLine("2 - Extract vmaps(needs maps to be extracted before you run this)");
+            //Console.WriteLine("3 - Extract mmaps(needs vmaps to be extracted before you run this, may take hours)");
+            Console.WriteLine("4 - Extract all(may take hours)");
+            Console.WriteLine("5 - EXIT");
+            Console.WriteLine();
         }
 
         static void ExtractDbcFiles(LocaleMask localeMask)
@@ -193,7 +220,7 @@ namespace DataExtractor
                     }
                 }
                 else
-                    Console.WriteLine($"Unable to open file {$"File{cameraFileId:x8}.xxx"} in the archive: \n");
+                    Console.WriteLine($"Unable to open file {$"File{cameraFileId:X8}.xxx"} in the archive: \n");
             }
 
             Console.WriteLine($"Extracted {count} Camera files.");
@@ -297,25 +324,13 @@ namespace DataExtractor
         {
             Console.WriteLine("Extracting Vmap files...");
 
-            /*var TC = Directory.GetFiles($@"C:\Users\Mark\Desktop\Buildings\").Select(Path.GetFileName);
-            var Mine = Directory.GetFiles(wmoDirectory).Select(Path.GetFileName);
-
-            foreach (string file in TC)
-            {
-                if (!Mine.Contains(file))
-                {
-                    Console.WriteLine(file);
-                }
-            }*/
-
-
             CreateDirectory(wmoDirectory);
+            File.Delete(wmoDirectory + "dir_bin");
 
             // Extract models, listed in GameObjectDisplayInfo.dbc
-            //VmapFile.ExtractGameobjectModels();
+            VmapFile.ExtractGameobjectModels();
 
             Console.WriteLine("Read Map.dbc file... ");
-
             if (mapStorage == null)
             {
                 var stream = cascHandler.ReadFile("DBFilesClient\\Map.db2");
@@ -334,8 +349,16 @@ namespace DataExtractor
             }
 
             VmapFile.ParsMapFiles();
-            Console.WriteLine($"Extract V4.03 2015_05. Work complete. No errors.\n");
-            Console.ReadKey();
+            Console.WriteLine("Extracting Done!");
+
+            Console.WriteLine("Converting Vmap files...");
+            CreateDirectory("./vmaps");
+
+            TileAssembler ta = new TileAssembler(wmoDirectory, "vmaps");
+            if (!ta.convertWorld2())
+                return;
+
+            Console.WriteLine("Converting Done!");
         }
 
         static void ExtractMMaps()
@@ -343,7 +366,7 @@ namespace DataExtractor
 
         }
 
-        static void CreateDirectory(string path)
+        public static void CreateDirectory(string path)
         {
             if (Directory.Exists(path))
                 Directory.Delete(path, true);
