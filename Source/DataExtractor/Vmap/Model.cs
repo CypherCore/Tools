@@ -1,28 +1,12 @@
-﻿/*
- * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Runtime.InteropServices;
 using Framework.GameMath;
 using Framework.Constants;
 
-namespace DataExtractor.Vmap.Collision
+namespace DataExtractor.Vmap
 {
     class Model
     {
@@ -74,7 +58,7 @@ namespace DataExtractor.Vmap.Collision
                         vertices[i] = reader.ReadStruct<Vector3>();
 
                     //for (uint i = 0; i < header.nBoundingVertices; i++)
-                        //vertices[i] = fixCoordSystem(vertices[i]);
+                    //vertices[i] = fixCoordSystem(vertices[i]);
 
                     reader.BaseStream.Seek(m2start + header.ofsBoundingTriangles, SeekOrigin.Begin);
                     indices = new ushort[header.nBoundingTriangles];
@@ -231,68 +215,12 @@ namespace DataExtractor.Vmap.Collision
                 ); */
         }
 
-        uint id;
-        Vector3 pos;
-        Vector3 rot;
-        ushort scale;
-        ushort flags;
-        float sc;
-    }
-
-    class ModelSpawn
-    {
-        public AxisAlignedBox getBounds() { return iBound; }
-
-        public static bool readFromFile(BinaryReader reader, out ModelSpawn spawn)
-        {
-            spawn = new ModelSpawn();
-            spawn.flags = reader.ReadUInt32();
-            spawn.adtId = reader.ReadUInt16();
-            spawn.ID = reader.ReadUInt32();
-            spawn.iPos = reader.ReadStruct<Vector3>();
-            spawn.iRot = reader.ReadStruct<Vector3>();
-            spawn.iScale = reader.ReadSingle();
-
-            if ((spawn.flags & ModelFlags.HasBound) != 0) // only WMOs have bound in MPQ, only available after computation
-            {
-                Vector3 bLow = reader.ReadStruct<Vector3>();
-                Vector3 bHigh = reader.ReadStruct<Vector3>();
-                spawn.iBound = new AxisAlignedBox(bLow, bHigh);
-            }
-
-            int nameLen = reader.ReadInt32();
-            spawn.name = reader.ReadString(nameLen);
-            return true;
-        }
-
-        public static void writeToFile(BinaryWriter writer, ModelSpawn spawn)
-        {
-            writer.Write(spawn.flags);
-            writer.Write(spawn.adtId);
-            writer.Write(spawn.ID);
-            writer.WriteVector3(spawn.iPos);
-            writer.WriteVector3(spawn.iRot);
-            writer.Write(spawn.iScale);
-
-            if ((spawn.flags & ModelFlags.HasBound) != 0) // only WMOs have bound in MPQ, only available after computation
-            {
-                writer.WriteVector3(spawn.iBound.Lo);
-                writer.WriteVector3(spawn.iBound.Hi);
-            }
-
-            writer.Write(spawn.name.Length);
-            writer.WriteString(spawn.name);
-        }
-
-        //mapID, tileX, tileY, Flags, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
-        public uint flags;
-        public ushort adtId;
-        public uint ID;
-        public Vector3 iPos;
-        public Vector3 iRot;
-        public float iScale;
-        public AxisAlignedBox iBound;
-        public string name;
+        public uint id;
+        public Vector3 pos;
+        public Vector3 rot;
+        public ushort scale;
+        public ushort flags;
+        public float sc;
     }
 
     [StructLayout(LayoutKind.Sequential)]

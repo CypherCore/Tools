@@ -21,6 +21,7 @@ using System.IO;
 using Framework.GameMath;
 using Framework.Constants;
 using System.Linq;
+using Framework.Collision;
 
 namespace DataExtractor.Vmap.Collision
 {
@@ -88,7 +89,7 @@ namespace DataExtractor.Vmap.Collision
                 {
                     //general info
                     writer.WriteString(SharedConst.VMAP_MAGIC);
-                    uint globalTileID = packTileID(65, 65);
+                    uint globalTileID = StaticMapTree.packTileID(65, 65);
                     var globalRange = mapSpawn.TileEntries.LookupByKey(globalTileID);
                     bool isTiled = globalRange.Count == 0; // only maps without terrain (tiles) have global WMO
                     writer.Write(isTiled);
@@ -113,7 +114,7 @@ namespace DataExtractor.Vmap.Collision
 
                     string tilefilename = $"{iDestDir}/{mapPair.Key:D4}_";
                     uint x, y;
-                    unpackTileID(key, out x, out y);
+                    StaticMapTree.unpackTileID(key, out x, out y);
                     tilefilename += $"{x:D2}_{y:D2}.vmtile";
                     using (BinaryWriter writer = new BinaryWriter(File.Open(tilefilename, FileMode.Create, FileAccess.Write)))
                     {     
@@ -184,7 +185,7 @@ namespace DataExtractor.Vmap.Collision
 
                     if (!current.UniqueEntries.ContainsKey(spawn.ID))
                         current.UniqueEntries.Add(spawn.ID, spawn);
-                    current.TileEntries.Add(packTileID(tileX, tileY), spawn.ID);
+                    current.TileEntries.Add(StaticMapTree.packTileID(tileX, tileY), spawn.ID);
                 }
             }
 
@@ -336,13 +337,6 @@ namespace DataExtractor.Vmap.Collision
                 }
             }
 
-        }
-
-        static uint packTileID(uint tileX, uint tileY) { return tileX << 16 | tileY; }
-        static void unpackTileID(uint ID, out uint tileX, out uint tileY)
-        {
-            tileX = ID >> 16;
-            tileY = ID & 0xFF;
         }
 
         string iDestDir;

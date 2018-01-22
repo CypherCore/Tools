@@ -26,6 +26,8 @@ using System.Text.RegularExpressions;
 using DataExtractor.Vmap.Collision;
 using DataExtractor.Vmap;
 using Framework.CASC;
+using DataExtractor.Mmap;
+using System.Linq;
 
 namespace DataExtractor
 {
@@ -45,6 +47,11 @@ namespace DataExtractor
             Console.WriteLine(@"               \/__/  \/_/    Core Data Extractor");
             Console.WriteLine("\r");
 
+            baseDirectory = Environment.CurrentDirectory;
+
+            if (args.Length > 0)
+                baseDirectory = Path.GetDirectoryName(args[0]);
+
             PrintInstructions();
 
             string answer = Console.ReadLine();
@@ -53,8 +60,7 @@ namespace DataExtractor
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("Initializing CASC library...");
-            cascHandler = new CASCHandler(Environment.CurrentDirectory);
-            baseDirectory = Environment.CurrentDirectory;
+            cascHandler = new CASCHandler(baseDirectory);
             Console.WriteLine("Done.");
 
             List<Locale> locales = new List<Locale>();
@@ -118,7 +124,7 @@ namespace DataExtractor
                         ExtractDbcFiles(installedLocalesMask);
                         ExtractMaps(build);
                         ExtractVMaps();
-                        ExtractMMaps();
+                        //ExtractMMaps();
                         break;
                 }
 
@@ -363,7 +369,28 @@ namespace DataExtractor
 
         static void ExtractMMaps()
         {
+            if (!Directory.Exists("maps") || Directory.GetFiles("maps").Length == 0)
+            {
+                Console.WriteLine("'maps' directory is empty or does not exist");
+                return;
+            }
 
+            if (!Directory.Exists("vmaps") || Directory.GetFiles("vmaps").Length == 0)
+            {
+                Console.WriteLine("'vmaps' directory is empty or does not exist");
+                return;
+            }
+
+            CreateDirectory("mmaps");
+
+            Console.WriteLine("Extracting MMap files...");
+
+            MapBuilder builder = new MapBuilder();
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            builder.buildAllMaps(0);
+
+            Console.WriteLine($"Finished. MMAPS were built in {watch.ElapsedMilliseconds} ms!");
         }
 
         public static void CreateDirectory(string path)

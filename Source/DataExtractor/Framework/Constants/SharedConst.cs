@@ -42,6 +42,21 @@ namespace Framework.Constants
             LocaleMask.ptBR | LocaleMask.ptPT,
             LocaleMask.itIT
         };
+
+        public const uint MMAP_MAGIC = 0x4d4d4150;   // 'MMAP'
+        public const uint MMAP_VERSION = 8;
+        public const uint MAP_VERSION_MAGIC = 0x382E3176;        
+
+        public const int V9_SIZE = 129;
+        public const int V9_SIZE_SQ = V9_SIZE * V9_SIZE;
+        public const int V8_SIZE = 128;
+        public const int V8_SIZE_SQ = V8_SIZE * V8_SIZE;
+        public const float GRID_SIZE = 533.3333f;
+        public const float GRID_PART_SIZE = GRID_SIZE / V8_SIZE;
+
+        // see contrib/extractor/system.cpp, CONF_use_minHeight
+        public const float INVALID_MAP_LIQ_HEIGHT = -500.0f;
+        public const float INVALID_MAP_LIQ_HEIGHT_MAX = 5000.0f;
     }
 
     public enum LiquidType
@@ -90,5 +105,34 @@ namespace Framework.Constants
         public const uint M2 = 1;
         public const uint WorldSpawn = 1 << 1;
         public const uint HasBound = 1 << 2;
-    };
+    }
+
+    public enum Spot
+    {
+        Top = 1,
+        Right = 2,
+        Left = 3,
+        Bottom = 4,
+        Entire = 5
+    }
+
+    public enum Grid
+    {
+        V8,
+        V9
+    }
+
+    public enum NavTerrain
+    {
+        Empty = 0x00,
+        Ground = 0x01,
+        Magma = 0x02,
+        Slime = 0x04,
+        Water = 0x08,
+        Unused1 = 0x10,
+        Unused2 = 0x20,
+        Unused3 = 0x40,
+        Unused4 = 0x80
+        // we only have 8 bits
+    }
 }

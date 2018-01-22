@@ -22,7 +22,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Framework.GameMath;
 
-namespace DataExtractor.Vmap
+namespace Framework.Collision
 {
     public delegate void GetBounds<T>(T obj, out AxisAlignedBox box);
 

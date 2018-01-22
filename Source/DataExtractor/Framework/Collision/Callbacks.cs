@@ -17,9 +17,8 @@
 
 using System.Collections.Generic;
 using Framework.GameMath;
-using DataExtractor.Vmap.Collision;
 
-namespace DataExtractor.Vmap
+namespace Framework.Collision
 {
     public class TriBoundFunc
     {

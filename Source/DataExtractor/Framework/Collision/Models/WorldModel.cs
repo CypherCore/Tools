@@ -21,7 +21,7 @@ using System.IO;
 using Framework.GameMath;
 using Framework.Constants;
 
-namespace DataExtractor.Vmap.Collision
+namespace Framework.Collision
 {
     public struct MeshTriangle
     {
@@ -125,10 +125,17 @@ namespace DataExtractor.Vmap.Collision
             return liquid;
         }
 
+        public void getPosInfo(out uint tilesX, out uint tilesY, out Vector3 corner)
+        {
+            tilesX = iTilesX;
+            tilesY = iTilesY;
+            corner = iCorner;
+        }
+
         uint iTilesX;
         uint iTilesY;
         Vector3 iCorner;
-        uint iType;
+        public uint iType;
         public float[] iHeight;
         public byte[] iFlags;
     }
@@ -259,6 +266,13 @@ namespace DataExtractor.Vmap.Collision
             return true;
         }
 
+        public void getMeshData(out List<Vector3> outVertices, out List<MeshTriangle> outTriangles, out WmoLiquid liquid)
+        {
+            outVertices = vertices;
+            outTriangles = triangles;
+            liquid = iLiquid;
+        }
+
         public AxisAlignedBox GetBound() { return iBound; }
 
         AxisAlignedBox iBound;
@@ -353,6 +367,11 @@ namespace DataExtractor.Vmap.Collision
 
                 return true;
             }
+        }
+
+        public void getGroupModels(out List<GroupModel> outGroupModels)
+        {
+            outGroupModels = groupModels;
         }
 
         public void setRootWmoID(uint id) { RootWMOID = id; }

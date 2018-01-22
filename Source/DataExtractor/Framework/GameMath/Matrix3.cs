@@ -524,20 +524,39 @@ namespace Framework.GameMath
             return t;
         }
 
+        public static Matrix3 fromEulerAnglesXYZ(float fYAngle, float fPAngle,                                  float fRAngle)
+        {
+            float fCos, fSin;
+
+            fCos = MathF.Cos(fYAngle);
+            fSin = MathF.Sin(fYAngle);
+            Matrix3 kXMat = new Matrix3(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
+
+            fCos = MathF.Cos(fPAngle);
+            fSin = MathF.Sin(fPAngle);
+            Matrix3 kYMat = new Matrix3(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
+
+            fCos = MathF.Cos(fRAngle);
+            fSin = MathF.Sin(fRAngle);
+            Matrix3 kZMat = new Matrix3(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
+
+            return kXMat * (kYMat * kZMat);
+        }
+
         public static Matrix3 fromEulerAnglesZYX(float fYAngle, float fPAngle, float fRAngle)
         {
             float fCos, fSin;
 
-            fCos = (float)Math.Cos(fYAngle);
-            fSin = (float)Math.Sin(fYAngle);
+            fCos = MathF.Cos(fYAngle);
+            fSin = MathF.Sin(fYAngle);
             Matrix3 kZMat = new Matrix3(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
 
-            fCos = (float)Math.Cos(fPAngle);
-            fSin = (float)Math.Sin(fPAngle);
+            fCos = MathF.Cos(fPAngle);
+            fSin = MathF.Sin(fPAngle);
             Matrix3 kYMat = new Matrix3(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
 
-            fCos = (float)Math.Cos(fRAngle);
-            fSin = (float)Math.Sin(fRAngle);
+            fCos = MathF.Cos(fRAngle);
+            fSin = MathF.Sin(fRAngle);
             Matrix3 kXMat = new Matrix3(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
 
             return (kZMat * (kYMat * kXMat));
