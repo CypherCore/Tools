@@ -44,13 +44,13 @@ namespace Framework.ClientReader
     {
         public uint Id;
         public string Name;
+        public string[] Texture = new string[6];
         public uint SpellID;
         public float MaxDarkenDepth;
         public float FogDarkenIntensity;
         public float AmbDarkenIntensity;
         public float DirDarkenIntensity;
         public float ParticleScale;
-        public string[] Texture = new string[6];
         public uint[] Color = new uint[2];
         public float[] Float = new float[18];
         public uint[] Int = new uint[4];
@@ -61,23 +61,22 @@ namespace Framework.ClientReader
         public byte ParticleTexSlots;
         public byte MaterialID;
         public byte[] DepthTexCount = new byte[6];
-        public uint SoundID;
+        public ushort SoundID;
     }
 
     public sealed class MapRecord
     {
         public uint Id;
-
         public string Directory;
-        public uint[] Flags = new uint[2];
-        public float MinimapIconScale;
-        public float CorpsePosX;                                        // entrance coordinates in ghost mode  (in most cases = normal entrance)
-        public float CorpsePosY;
         public string MapName;
         public string MapDescription0;                               // Horde
         public string MapDescription1;                               // Alliance
         public string ShortDescription;
         public string LongDescription;
+        public uint[] Flags = new uint[2];
+        public float MinimapIconScale;
+        public float CorpsePosX;                                        // entrance coordinates in ghost mode  (in most cases = normal entrance)
+        public float CorpsePosY;
         public ushort AreaTableID;
         public ushort LoadingScreenID;
         public short CorpseMapID;                                              // map_id of entrance map in ghost mode (continent always and in most cases = normal entrance)

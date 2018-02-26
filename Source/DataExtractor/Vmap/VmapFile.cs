@@ -35,7 +35,7 @@ namespace DataExtractor.Vmap
                 Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
                 return;
             }
-            var GameObjectDisplayInfoStorage = DB6Reader.Read<GameObjectDisplayInfoRecord>(stream, DB6Metas.GameObjectDisplayInfoMeta);
+            var GameObjectDisplayInfoStorage = DBReader.Read<GameObjectDisplayInfoRecord>(stream);
             if (GameObjectDisplayInfoStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid GameObjectDisplayInfo.db2 file format!\n");
@@ -85,7 +85,7 @@ namespace DataExtractor.Vmap
                 return;
             }
 
-            var mapStorage = DB6Reader.Read<MapRecord>(stream, DB6Metas.MapMeta);
+            var mapStorage = DBReader.Read<MapRecord>(stream);
             if (mapStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");

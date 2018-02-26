@@ -126,6 +126,54 @@ namespace System
             writer.Write(vector.Y);
             writer.Write(vector.Z);
         }
+
+        public static int ReadInt32(this BinaryReader br, int byteCount = 0)
+        {
+            if (byteCount == 0)
+                return br.ReadInt32();
+
+            byte[] b = new byte[sizeof(int)];
+            for (int i = 0; i < byteCount; i++)
+                b[i] = br.ReadByte();
+
+            return BitConverter.ToInt32(b, 0);
+        }
+
+        public static uint ReadUInt32(this BinaryReader br, int byteCount = 0)
+        {
+            if (byteCount == 0)
+                return br.ReadUInt32();
+
+            byte[] b = new byte[sizeof(uint)];
+            for (int i = 0; i < byteCount; i++)
+                b[i] = br.ReadByte();
+
+            return BitConverter.ToUInt32(b, 0);
+        }
+
+        public static long ReadInt64(this BinaryReader br, int byteCount = 0)
+        {
+            if (byteCount == 0)
+                return br.ReadInt64();
+
+            byte[] b = new byte[sizeof(long)];
+            for (int i = 0; i < byteCount; i++)
+                b[i] = br.ReadByte();
+
+            return BitConverter.ToInt64(b, 0);
+        }
+
+        public static ulong ReadUInt64(this BinaryReader br, int byteCount = 0)
+        {
+            if (byteCount == 0)
+                return br.ReadUInt64();
+
+            byte[] b = new byte[sizeof(ulong)];
+            for (int i = 0; i < byteCount; i++)
+                b[i] = br.ReadByte();
+
+            return BitConverter.ToUInt64(b, 0);
+        }
         #endregion
 
         public static Func<object, object> CompileGetter(this FieldInfo field)

@@ -895,7 +895,7 @@ namespace DataExtractor.Mmap
         public bool usesLiquids() { return true; }// !m_skipLiquid; }
     }
 
-    struct map_fileheader
+    public struct map_fileheader
     {
         public uint mapMagic;
         public uint versionMagic;
@@ -910,7 +910,7 @@ namespace DataExtractor.Mmap
         public uint holesSize;
     }
 
-    struct map_heightHeader
+    public struct map_heightHeader
     {
         public uint fourcc;
         public uint flags;
@@ -918,7 +918,7 @@ namespace DataExtractor.Mmap
         public float gridMaxHeight;
     }
 
-    struct map_liquidHeader
+    public struct map_liquidHeader
     {
         public uint fourcc;
         public ushort flags;

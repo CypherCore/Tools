@@ -194,7 +194,7 @@ namespace DataExtractor
                 return;
             }
 
-            Dictionary<uint, CinematicCameraRecord> cinematicCameraStorage = DB6Reader.Read<CinematicCameraRecord>(stream, DB6Metas.CinematicCameraMeta);
+            Dictionary<uint, CinematicCameraRecord> cinematicCameraStorage = DBReader.Read<CinematicCameraRecord>(stream);
             if (cinematicCameraStorage == null)
             {
                 Console.WriteLine("Invalid CinematicCamera.db2 file format. Camera extract aborted.\n");
@@ -271,7 +271,7 @@ namespace DataExtractor
                 Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
                 return;
             }
-            mapStorage = DB6Reader.Read<MapRecord>(stream, DB6Metas.MapMeta);
+            mapStorage = DBReader.Read<MapRecord>(stream);
             if (mapStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
@@ -285,7 +285,7 @@ namespace DataExtractor
                 return;
             }
 
-            liquidTypeStorage = DB6Reader.Read<LiquidTypeRecord>(stream, DB6Metas.LiquidTypeMeta);
+            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>(stream);
             if (liquidTypeStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid LiquidType.db2 file format!\n");
@@ -345,7 +345,7 @@ namespace DataExtractor
                     Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
                     return;
                 }
-                mapStorage = DB6Reader.Read<MapRecord>(stream, DB6Metas.MapMeta);
+                mapStorage = DBReader.Read<MapRecord>(stream);
             }
 
             if (mapStorage == null)
