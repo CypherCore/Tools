@@ -40,6 +40,23 @@ namespace Framework.ClientReader
         public ushort ObjectEffectPackageID;
     }
 
+    public sealed class LiquidMaterialRecord
+    {
+        public uint Id;
+        public sbyte LVF;
+        public sbyte Flags;
+    }
+
+    public sealed class LiquidObjectRecord
+    {
+        public uint Id;
+        public float FlowDirection;
+        public float FlowSpeed;
+        public short LiquidTypeID;
+        public byte Fishable;
+        public byte Reflection;
+    }
+
     public sealed class LiquidTypeRecord
     {
         public uint Id;
@@ -56,7 +73,7 @@ namespace Framework.ClientReader
         public uint[] Int = new uint[4];
         public ushort Flags;
         public ushort LightID;
-        public byte LiquidType;
+        public byte SoundBank;
         public byte ParticleMovement;
         public byte ParticleTexSlots;
         public byte MaterialID;

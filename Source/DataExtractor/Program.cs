@@ -103,14 +103,16 @@ namespace DataExtractor
 
             Console.WriteLine($"Detected client build: {build}");
             Console.WriteLine($"Detected client locale: {firstInstalledLocale}");
+            cascHandler.SetLocale(firstInstalledLocale);
+            if (!CliDB.LoadFiles(cascHandler))
+                return;
 
             do
             {
-                cascHandler.SetLocale(firstInstalledLocale);
                 switch (answer)
                 {
                     case "1":
-                        ExtractDbcFiles(installedLocalesMask);
+                        ExtractDbcFiles(firstInstalledLocale, installedLocalesMask);
                         ExtractMaps(build);
                         break;
                     case "2":
@@ -121,7 +123,7 @@ namespace DataExtractor
                         break;
                     case "4":
                     default:
-                        ExtractDbcFiles(installedLocalesMask);
+                        ExtractDbcFiles(firstInstalledLocale, installedLocalesMask);
                         ExtractMaps(build);
                         ExtractVMaps();
                         //ExtractMMaps();
@@ -145,7 +147,7 @@ namespace DataExtractor
             Console.WriteLine();
         }
 
-        static void ExtractDbcFiles(LocaleMask localeMask)
+        static void ExtractDbcFiles(LocaleMask firstInstalledLocale, LocaleMask localeMask)
         {
             string path = $"{baseDirectory}/dbc";
             CreateDirectory(path);
@@ -180,45 +182,27 @@ namespace DataExtractor
 
             Console.WriteLine($"Extracted {count} db2 files.");
 
+            cascHandler.SetLocale(firstInstalledLocale);
+
             ExtractCameraFiles();
             ExtractGameTablesFiles();
         }
 
         static void ExtractCameraFiles()
         {
-            Console.WriteLine("Extracting Camera files...");
-            var stream = cascHandler.ReadFile("DBFilesClient\\CinematicCamera.db2");
-            if (stream == null)
-            {
-                Console.WriteLine("Unable to open file DBFilesClient\\CinematicCamera.db2s in the archive");
-                return;
-            }
-
-            Dictionary<uint, CinematicCameraRecord> cinematicCameraStorage = DBReader.Read<CinematicCameraRecord>(stream);
-            if (cinematicCameraStorage == null)
-            {
-                Console.WriteLine("Invalid CinematicCamera.db2 file format. Camera extract aborted.\n");
-                return;
-            }
-
-            List<uint> CameraFileNames = new List<uint>();
-            // get camera file list from DB2
-            foreach (var record in cinematicCameraStorage.Values)
-                CameraFileNames.Add(record.ModelFileDataID);
-
-            Console.WriteLine($"Done! ({CameraFileNames.Count} CinematicCameras loaded)\n");
+            Console.WriteLine($"Extracting ({CliDB.CameraFileNames.Count} CinematicCameras!)\n");
 
             string path = $"{baseDirectory}/cameras";
             CreateDirectory(path);
 
             // extract M2s
             uint count = 0;
-            foreach (int cameraFileId in CameraFileNames)
+            foreach (int cameraFileId in CliDB.CameraFileNames)
             {
                 var cameraStream = cascHandler.ReadFile(cameraFileId);
                 if (cameraStream != null)
                 {
-                    string file = path + $"/File{cameraFileId:X8}.xxx";
+                    string file = path + $"/FILE{cameraFileId:X8}.xxx";
                     if (!File.Exists(file))
                     {
                         FileWriter.WriteFile(cameraStream, file);
@@ -263,45 +247,17 @@ namespace DataExtractor
         static void ExtractMaps(uint build)
         {
             Console.WriteLine("Extracting maps...\n");
-            Console.WriteLine("Loading db2 files...\n");
-
-            var stream = cascHandler.ReadFile("DBFilesClient\\Map.db2");
-            if (stream == null)
-            {
-                Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
-                return;
-            }
-            mapStorage = DBReader.Read<MapRecord>(stream);
-            if (mapStorage == null)
-            {
-                Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
-                return;
-            }
-
-            stream = cascHandler.ReadFile("DBFilesClient\\LiquidType.db2");
-            if (stream == null)
-            {
-                Console.WriteLine("Unable to open file DBFilesClient\\LiquidType.db2 in the archive\n");
-                return;
-            }
-
-            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>(stream);
-            if (liquidTypeStorage == null)
-            {
-                Console.WriteLine("Fatal error: Invalid LiquidType.db2 file format!\n");
-                return;
-            }
 
             string path = $"{baseDirectory}/maps";
             CreateDirectory(path);
 
             Console.WriteLine("Convert map files\n");
             int count = 1;
-            foreach (var map in mapStorage.Values)
+            foreach (var record in CliDB.MapStorage.Values)
             {
-                Console.Write($"Extract {map.MapName} ({count}/{mapStorage.Count})                  \n");
+                Console.Write($"Extract {record.Directory} ({count++}/{CliDB.MapStorage.Count})                  \n");
                 // Loadup map grid data
-                string storagePath = $"World\\Maps\\{map.Directory}\\{map.Directory}.wdt";
+                string storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}.wdt";
                 ChunkedFile wdt = new ChunkedFile();
                 if (wdt.loadFile(cascHandler, storagePath))
                 {
@@ -312,15 +268,15 @@ namespace DataExtractor
                         {
                             if (Convert.ToBoolean(main.adt_list[y][x].flag & 0x1))
                             {
-                                storagePath = $"World\\Maps\\{map.Directory}\\{map.Directory}_{x}_{y}.adt";
-                                string outputFileName = $"{path}/{map.Id:D4}_{y:D2}_{x:D2}.map";
-                                MapFile.ConvertADT(cascHandler, storagePath, outputFileName, y, x, build);
+                                storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}.adt";
+                                string outputFileName = $"{path}/{record.Id:D4}_{y:D2}_{x:D2}.map";
+                                bool ignoreDeepWater = MapFile.IsDeepWaterIgnored(record.Id, y, x);
+                                MapFile.ConvertADT(cascHandler, storagePath, outputFileName, y, x, build, ignoreDeepWater);
                             }
                         }
                         // draw progress bar
                         Console.Write($"Processing........................{(100 * (y + 1)) / 64}%\r");
                     }
-                    count++;
                 }
             }
             Console.WriteLine("\n");
@@ -335,24 +291,6 @@ namespace DataExtractor
 
             // Extract models, listed in GameObjectDisplayInfo.dbc
             VmapFile.ExtractGameobjectModels();
-
-            Console.WriteLine("Read Map.dbc file... ");
-            if (mapStorage == null)
-            {
-                var stream = cascHandler.ReadFile("DBFilesClient\\Map.db2");
-                if (stream == null)
-                {
-                    Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
-                    return;
-                }
-                mapStorage = DBReader.Read<MapRecord>(stream);
-            }
-
-            if (mapStorage == null)
-            {
-                Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
-                return;
-            }
 
             VmapFile.ParsMapFiles();
             Console.WriteLine("Extracting Done!");
@@ -369,7 +307,7 @@ namespace DataExtractor
 
         static void ExtractMMaps()
         {
-            if (!Directory.Exists("maps") || Directory.GetFiles("maps").Length == 0)
+            /*if (!Directory.Exists("maps") || Directory.GetFiles("maps").Length == 0)
             {
                 Console.WriteLine("'maps' directory is empty or does not exist");
                 return;
@@ -384,13 +322,23 @@ namespace DataExtractor
             CreateDirectory("mmaps");
 
             Console.WriteLine("Extracting MMap files...");
+            var vm = new Framework.Collision.VMapManager2();
 
-            MapBuilder builder = new MapBuilder();
+            MultiMap<uint, uint> mapData = new MultiMap<uint, uint>();
+            foreach (var record in CliDB.MapStorage.Values)
+            {
+                if (record.ParentMapID != -1)
+                    mapData.Add((uint)record.ParentMapID, record.Id);
+            }
+
+            vm.Initialize(mapData);
+
+            MapBuilder builder = new MapBuilder(vm);
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
             builder.buildAllMaps(0);
 
-            Console.WriteLine($"Finished. MMAPS were built in {watch.ElapsedMilliseconds} ms!");
+            Console.WriteLine($"Finished. MMAPS were built in {watch.ElapsedMilliseconds} ms!");*/
         }
 
         public static void CreateDirectory(string path)
@@ -404,8 +352,5 @@ namespace DataExtractor
         public static CASCHandler cascHandler { get; set; }
         public static string baseDirectory { get; set; }
         public static string wmoDirectory { get; set; } = "./Buildings/";
-
-        static Dictionary<uint, MapRecord> mapStorage = new Dictionary<uint, MapRecord>();
-        public static Dictionary<uint, LiquidTypeRecord> liquidTypeStorage = new Dictionary<uint, LiquidTypeRecord>();
     }
 }

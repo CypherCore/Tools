@@ -31,7 +31,7 @@ namespace DataExtractor
         public static int ADT_GRID_SIZE = (ADT_CELLS_PER_GRID * ADT_CELL_SIZE);
 
         static uint MAP_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("MAPS"), 0);
-        static uint MAP_VERSION_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("v1.8"), 0);
+        static uint MAP_VERSION_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("v1.9"), 0);
         static uint MAP_AREA_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("AREA"), 0);
         static uint MAP_HEIGHT_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("MHGT"), 0);
         static uint MAP_LIQUID_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("MLIQ"), 0);
@@ -90,7 +90,7 @@ namespace DataExtractor
             return BitConverter.ToUInt64(hiResHoles, 0) != 0;
         }
 
-        public static bool ConvertADT(CASCHandler cascHandler, string inputPath, string outputPath, int cell_y, int cell_x, uint build)
+        public static bool ConvertADT(CASCHandler cascHandler, string inputPath, string outputPath, int cell_y, int cell_x, uint build, bool ignoreDeepWater)
         {
             ChunkedFile adt = new ChunkedFile();
             if (!adt.loadFile(cascHandler, inputPath))
@@ -224,7 +224,7 @@ namespace DataExtractor
                                 if (liquid.flags[y][x] != 0x0F)
                                 {
                                     liquid_show[cy][cx] = true;
-                                    if (Convert.ToBoolean(liquid.flags[y][x] & (1 << 7)))
+                                    if (!ignoreDeepWater && Convert.ToBoolean(liquid.flags[y][x] & (1 << 7)))
                                         liquid_flags[mcnk.iy][mcnk.ix] |= (byte)LiquidTypeMask.DarkWater;
                                     ++count;
                                 }
@@ -288,38 +288,42 @@ namespace DataExtractor
                 {
                     for (int j = 0; j < ADT_CELLS_PER_GRID; j++)
                     {
-                        adt_liquid_header? h = h2o.getLiquidData(i, j);
+                        adt_liquid_instance? h = h2o.GetLiquidInstance(i, j);
                         if (!h.HasValue)
                             continue;
 
-                        adt_liquid_header adtLiquidHeader = h.Value;
+                        adt_liquid_instance adtLiquidHeader = h.Value;
+
+                        adt_liquid_attributes attrs = h2o.GetLiquidAttributes(i, j);
 
                         int count = 0;
-                        ulong show = h2o.getLiquidShowMap(adtLiquidHeader);
-                        for (int y = 0; y < adtLiquidHeader.height; y++)
+                        ulong existsMask = h2o.GetLiquidExistsBitmap(adtLiquidHeader);
+                        for (int y = 0; y < adtLiquidHeader.GetHeight(); y++)
                         {
-                            int cy = i * ADT_CELL_SIZE + y + adtLiquidHeader.yOffset;
-                            for (int x = 0; x < adtLiquidHeader.width; x++)
+                            int cy = i * ADT_CELL_SIZE + y + adtLiquidHeader.GetOffsetY();
+                            for (int x = 0; x < adtLiquidHeader.GetWidth(); x++)
                             {
-                                int cx = j * ADT_CELL_SIZE + x + adtLiquidHeader.xOffset;
-                                if (Convert.ToBoolean(show & 1))
+                                int cx = j * ADT_CELL_SIZE + x + adtLiquidHeader.GetOffsetX();
+                                if (Convert.ToBoolean(existsMask & 1))
                                 {
                                     liquid_show[cy][cx] = true;
                                     ++count;
                                 }
-                                show >>= 1;
+                                existsMask >>= 1;
                             }
                         }
 
-                        liquid_entry[i][j] = adtLiquidHeader.liquidType;
-                        var liquidTypeRecord = Program.liquidTypeStorage[adtLiquidHeader.liquidType];
-                        switch ((LiquidType)liquidTypeRecord.LiquidType)
+                        liquid_entry[i][j] = h2o.GetLiquidType(adtLiquidHeader);
+                        var liquidTypeRecord = CliDB.LiquidTypes[liquid_entry[i][j]];
+                        switch ((LiquidType)liquidTypeRecord.SoundBank)
                         {
                             case LiquidType.Water:
                                 liquid_flags[i][j] |= (byte)LiquidTypeMask.Water;
                                 break;
                             case LiquidType.Ocean:
                                 liquid_flags[i][j] |= (byte)LiquidTypeMask.Ocean;
+                                if (!ignoreDeepWater && attrs.Deep != 0)
+                                    liquid_flags[i][j] |= (byte)LiquidTypeMask.DarkWater;
                                 break;
                             case LiquidType.Magma:
                                 liquid_flags[i][j] |= (byte)LiquidTypeMask.Magma;
@@ -328,33 +332,22 @@ namespace DataExtractor
                                 liquid_flags[i][j] |= (byte)LiquidTypeMask.Slime;
                                 break;
                             default:
-                                Console.WriteLine($"\nCan't find Liquid type {adtLiquidHeader.liquidType} for map {inputPath}\nchunk {i},{j}\n");
+                                Console.WriteLine($"\nCan't find Liquid type {adtLiquidHeader.LiquidType} for map {inputPath}\nchunk {i},{j}\n");
                                 break;
-                        }
-                        // Dark water detect
-                        if ((LiquidType)liquidTypeRecord.LiquidType == LiquidType.Ocean)
-                        {
-                            byte[] lm = h2o.getLiquidLightMap(adtLiquidHeader);
-                            if (lm == null)
-                                liquid_flags[i][j] |= (byte)LiquidTypeMask.DarkWater;
                         }
 
                         if (count == 0 && liquid_flags[i][j] != 0)
                             Console.WriteLine("Wrong liquid detect in MH2O chunk");
 
-                        float[] height = h2o.getLiquidHeightMap(adtLiquidHeader);
                         int pos = 0;
-                        for (int y = 0; y <= adtLiquidHeader.height; y++)
+                        for (int y = 0; y <= adtLiquidHeader.GetHeight(); y++)
                         {
-                            int cy = i * ADT_CELL_SIZE + y + adtLiquidHeader.yOffset;
-                            for (int x = 0; x <= adtLiquidHeader.width; x++)
+                            int cy = i * ADT_CELL_SIZE + y + adtLiquidHeader.GetOffsetY();
+                            for (int x = 0; x <= adtLiquidHeader.GetWidth(); x++)
                             {
-                                int cx = j * ADT_CELL_SIZE + x + adtLiquidHeader.xOffset;
+                                int cx = j * ADT_CELL_SIZE + x + adtLiquidHeader.GetOffsetX();
 
-                                if (height != null)
-                                    liquid_height[cy][cx] = height[pos];
-                                else
-                                    liquid_height[cy][cx] = adtLiquidHeader.heightLevel1;
+                                liquid_height[cy][cx] = h2o.GetLiquidHeight(adtLiquidHeader, pos);
 
                                 pos++;
                             }
@@ -443,21 +436,21 @@ namespace DataExtractor
             }
 
             // Check for allow limit minimum height (not store height in deep ochean - allow save some memory)
-            if (minHeight < -500.0f)
+            if (minHeight < -2000.0f)
             {
                 for (int y = 0; y < ADT_GRID_SIZE; y++)
                     for (int x = 0; x < ADT_GRID_SIZE; x++)
-                        if (V8[y][x] < -500.0f)
-                            V8[y][x] = -500.0f;
+                        if (V8[y][x] < -2000.0f)
+                            V8[y][x] = -2000.0f;
                 for (int y = 0; y <= ADT_GRID_SIZE; y++)
                     for (int x = 0; x <= ADT_GRID_SIZE; x++)
-                        if (V9[y][x] < -500.0f)
-                            V9[y][x] = -500.0f;
+                        if (V9[y][x] < -2000.0f)
+                            V9[y][x] = -2000.0f;
 
-                if (minHeight < -500.0f)
-                    minHeight = -500.0f;
-                if (maxHeight < -500.0f)
-                    maxHeight = -500.0f;
+                if (minHeight < -2000.0f)
+                    minHeight = -2000.0f;
+                if (maxHeight < -2000.0f)
+                    maxHeight = -2000.0f;
             }
 
             map.heightMapOffset = map.areaMapOffset + map.areaMapSize;
@@ -532,13 +525,14 @@ namespace DataExtractor
             //============================================
             // Pack liquid data
             //============================================
-            byte type = liquid_flags[0][0];
+            ushort firstLiquidType = liquid_entry[0][0];
+            byte firstLiquidFlag = liquid_flags[0][0];
             bool fullType = false;
             for (int y = 0; y < ADT_CELLS_PER_GRID; y++)
             {
                 for (int x = 0; x < ADT_CELLS_PER_GRID; x++)
-                {
-                    if (liquid_flags[y][x] != type)
+                { 
+                    if (liquid_entry[y][x] != firstLiquidType || liquid_flags[y][x] != firstLiquidFlag)
                     {
                         fullType = true;
                         y = ADT_CELLS_PER_GRID;
@@ -550,7 +544,7 @@ namespace DataExtractor
             map_liquidHeader mapLiquidHeader = new map_liquidHeader();
 
             // no water data (if all grid have 0 liquid type)
-            if (type == 0 && !fullType)
+            if (firstLiquidFlag == 0 && !fullType)
             {
                 // No liquid data
                 map.liquidMapOffset = 0;
@@ -568,22 +562,29 @@ namespace DataExtractor
                     {
                         if (liquid_show[y][x])
                         {
-                            if (minX > x) minX = x;
-                            if (maxX < x) maxX = x;
-                            if (minY > y) minY = y;
-                            if (maxY < y) maxY = y;
+                            if (minX > x)
+                                minX = x;
+                            if (maxX < x)
+                                maxX = x;
+                            if (minY > y)
+                                minY = y;
+                            if (maxY < y)
+                                maxY = y;
                             float h = liquid_height[y][x];
-                            if (maxHeight < h) maxHeight = h;
-                            if (minHeight > h) minHeight = h;
+                            if (maxHeight < h)
+                                maxHeight = h;
+                            if (minHeight > h)
+                                minHeight = h;
                         }
                         else
-                            liquid_height[y][x] = -500.0f;
+                            liquid_height[y][x] = -2000.0f;
                     }
                 }
                 map.liquidMapOffset = map.heightMapOffset + map.heightMapSize;
                 map.liquidMapSize = (uint)Marshal.SizeOf<map_liquidHeader>();
                 mapLiquidHeader.fourcc = MAP_LIQUID_MAGIC;
                 mapLiquidHeader.flags = 0;
+                mapLiquidHeader.liquidFlags = 204; //Todo Fix me. hack to make file match TC
                 mapLiquidHeader.liquidType = 0;
                 mapLiquidHeader.offsetX = (byte)minX;
                 mapLiquidHeader.offsetY = (byte)minY;
@@ -602,7 +603,10 @@ namespace DataExtractor
                     mapLiquidHeader.flags |= 0x0001;
 
                 if (Convert.ToBoolean(mapLiquidHeader.flags & 0x0001))
-                    mapLiquidHeader.liquidType = type;
+                {
+                    mapLiquidHeader.liquidFlags = firstLiquidFlag;
+                    mapLiquidHeader.liquidType = firstLiquidType;
+                }
                 else
                     map.liquidMapSize += 512 + 256;
 
@@ -610,15 +614,20 @@ namespace DataExtractor
                     map.liquidMapSize += (uint)(sizeof(float) * mapLiquidHeader.width * mapLiquidHeader.height);
             }
 
-            if (map.liquidMapOffset != 0)
-                map.holesOffset = map.liquidMapOffset + map.liquidMapSize;
-            else
-                map.holesOffset = map.heightMapOffset + map.heightMapSize;
-
             if (hasHoles)
-                map.holesSize = 2048;// (uint)(1 * holes.Length);
+            {
+                if (map.liquidMapOffset != 0)
+                    map.holesOffset = map.liquidMapOffset + map.liquidMapSize;
+                else
+                    map.holesOffset = map.heightMapOffset + map.heightMapSize;
+
+                map.holesSize = 2048;
+            }
             else
+            {
+                map.holesOffset = 0;
                 map.holesSize = 0;
+            }
 
             // Ok all data prepared - store it
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(outputPath, FileMode.Create, FileAccess.Write)))
@@ -699,7 +708,14 @@ namespace DataExtractor
                     {
                         for (int y = 0; y < mapLiquidHeader.height; y++)
                             for (int x = 0; x < mapLiquidHeader.width; x++)
+                            {
+                                if (binaryWriter.BaseStream.Position == 133658)
+                                {
+
+                                }
                                 binaryWriter.Write(liquid_height[y + mapLiquidHeader.offsetY][x + mapLiquidHeader.offsetX]);
+
+                            }
                     }
                 }
 
@@ -714,6 +730,33 @@ namespace DataExtractor
             }
 
             return true;
+        }
+
+        public static bool IsDeepWaterIgnored(uint mapId, int x, int y)
+        {
+            if (mapId == 0)
+            {
+                //                                                                                                GRID(39, 24) || GRID(39, 25) || GRID(39, 26) ||
+                //                                                                                                GRID(40, 24) || GRID(40, 25) || GRID(40, 26) ||
+                //GRID(41, 18) || GRID(41, 19) || GRID(41, 20) || GRID(41, 21) || GRID(41, 22) || GRID(41, 23) || GRID(41, 24) || GRID(41, 25) || GRID(41, 26) ||
+                //GRID(42, 18) || GRID(42, 19) || GRID(42, 20) || GRID(42, 21) || GRID(42, 22) || GRID(42, 23) || GRID(42, 24) || GRID(42, 25) || GRID(42, 26) ||
+                //GRID(43, 18) || GRID(43, 19) || GRID(43, 20) || GRID(43, 21) || GRID(43, 22) || GRID(43, 23) || GRID(43, 24) || GRID(43, 25) || GRID(43, 26) ||
+                //GRID(44, 18) || GRID(44, 19) || GRID(44, 20) || GRID(44, 21) || GRID(44, 22) || GRID(44, 23) || GRID(44, 24) || GRID(44, 25) || GRID(44, 26) ||
+                //GRID(45, 18) || GRID(45, 19) || GRID(45, 20) || GRID(45, 21) || GRID(45, 22) || GRID(45, 23) || GRID(45, 24) || GRID(45, 25) || GRID(45, 26) ||
+                //GRID(46, 18) || GRID(46, 19) || GRID(46, 20) || GRID(46, 21) || GRID(46, 22) || GRID(46, 23) || GRID(46, 24) || GRID(46, 25) || GRID(46, 26)
+
+                // Vashj'ir grids completely ignore fatigue
+                return (x >= 39 && x <= 40 && y >= 24 && y <= 26) || (x >= 41 && x <= 46 && y >= 18 && y <= 26);
+            }
+
+            if (mapId == 1)
+            {
+                // GRID(43, 39) || GRID(43, 40)
+                // Thousand Needles
+                return x == 43 && (y == 39 || y == 40);
+            }
+
+            return false;
         }
 
         static ushort[][] area_ids = new ushort[ADT_CELLS_PER_GRID][];
@@ -764,31 +807,55 @@ namespace DataExtractor
             public float gridMaxHeight;
         }
 
-        public struct map_liquidHeader
-        {
-            public uint fourcc;
-            public ushort flags;
-            public ushort liquidType;
-            public byte offsetX;
-            public byte offsetY;
-            public byte width;
-            public byte height;
-            public float liquidLevel;
-        }
+
     }
-    
-    struct adt_liquid_header
+
+    public struct map_liquidHeader
     {
-        public ushort liquidType { get; set; }             // Index from LiquidType.dbc
-        public ushort formatFlags { get; set; }
-        public float heightLevel1 { get; set; }
-        public float heightLevel2 { get; set; }
-        public byte xOffset { get; set; }
-        public byte yOffset { get; set; }
-        public byte width { get; set; }
-        public byte height { get; set; }
-        public uint offsData2a { get; set; }
-        public uint offsData2b { get; set; }
+        public uint fourcc;
+        public byte flags;
+        public byte liquidFlags;
+        public ushort liquidType;
+        public byte offsetX;
+        public byte offsetY;
+        public byte width;
+        public byte height;
+        public float liquidLevel;
+    }
+
+    enum LiquidVertexFormatType : int
+    {
+        HeightDepth = 0,
+        HeightTextureCoord = 1,
+        Depth = 2,
+        HeightDepthTextureCoord = 3,
+        Unk4 = 4,
+        Unk5 = 5
+    }
+
+    struct adt_liquid_instance
+    {
+        public ushort LiquidType { get; set; }             // Index from LiquidType.dbc
+        public ushort LiquidVertexFormat { get; set; }
+        public float MinHeightLevel { get; set; }
+        public float MaxHeightLevel { get; set; }
+        public byte OffsetX { get; set; }
+        public byte OffsetY { get; set; }
+        public byte Width { get; set; }
+        public byte Height { get; set; }
+        public uint OffsetExistsBitmap { get; set; }
+        public uint OffsetVertexData { get; set; }
+
+        public byte GetOffsetX() { return (byte)(LiquidVertexFormat < 42 ? OffsetX : 0); }
+        public byte GetOffsetY() { return (byte)(LiquidVertexFormat < 42 ? OffsetY : 0); }
+        public byte GetWidth() { return (byte)(LiquidVertexFormat < 42 ? Width : 8); }
+        public byte GetHeight() { return (byte)(LiquidVertexFormat < 42 ? Height : 8); }
+    }
+
+    struct adt_liquid_attributes
+    {
+        public ulong Fishable;
+        public ulong Deep;
     }
 
     interface IMapStruct
@@ -810,7 +877,7 @@ namespace DataExtractor
                     adt_list[x] = new adtData[64];
 
                     for (var y = 0; y < 64; ++y)
-                        adt_list[x][y] = reader.ReadStruct<adtData>();
+                        adt_list[x][y] = reader.Read<adtData>();
                 }
             }
         }
@@ -942,7 +1009,7 @@ namespace DataExtractor
                     liquid[x] = new liquid_data[MapFile.ADT_CELL_SIZE + 1];
 
                     for (var y = 0; y < MapFile.ADT_CELL_SIZE + 1; ++y)
-                        liquid[x][y] = reader.ReadStruct<liquid_data>();
+                        liquid[x][y] = reader.Read<liquid_data>();
                 }
 
                 for (var x = 0; x < MapFile.ADT_CELL_SIZE; ++x)
@@ -975,7 +1042,7 @@ namespace DataExtractor
             public float height { get; set; }
         }
     }
-    
+
     class adt_MH2O : IMapStruct
     {
         public void Read(byte[] data)
@@ -991,7 +1058,7 @@ namespace DataExtractor
                     liquid[x] = new adt_LIQUID[MapFile.ADT_CELLS_PER_GRID];
 
                     for (var y = 0; y < MapFile.ADT_CELLS_PER_GRID; ++y)
-                        liquid[x][y] = reader.ReadStruct<adt_LIQUID>();
+                        liquid[x][y] = reader.Read<adt_LIQUID>();
                 }
             }
         }
@@ -1003,60 +1070,133 @@ namespace DataExtractor
 
         public struct adt_LIQUID
         {
-            public uint offsData1 { get; set; }
+            public uint OffsetInstances { get; set; }
             public uint used { get; set; }
-            public uint offsData2 { get; set; }
+            public uint OffsetAttributes { get; set; }
         }
 
-        public adt_liquid_header? getLiquidData(int x, int y)
+        public adt_liquid_instance? GetLiquidInstance(int x, int y)
         {
-            if (liquid[x][y].used != 0 && liquid[x][y].offsData1 != 0)
-                return new BinaryReader(new MemoryStream(_data, 8 + (int)liquid[x][y].offsData1, _data.Length - (8 + (int)liquid[x][y].offsData1))).ReadStruct<adt_liquid_header>();
+            if (liquid[x][y].used != 0 && liquid[x][y].OffsetInstances != 0)
+                return new BinaryReader(new MemoryStream(_data, 8 + (int)liquid[x][y].OffsetInstances, _data.Length - (8 + (int)liquid[x][y].OffsetInstances))).Read<adt_liquid_instance>();
             return null;
         }
 
-        public float[] getLiquidHeightMap(adt_liquid_header h)
+        public adt_liquid_attributes GetLiquidAttributes(int x, int y)
         {
-            if (Convert.ToBoolean(h.formatFlags & 0x02))
-                return null;
-
-            if (h.offsData2b != 0)
+            if (liquid[x][y].used != 0)
             {
-                int index = 8 + (int)h.offsData2b;
+                if (liquid[x][y].OffsetAttributes != 0)
+                    return new BinaryReader(new MemoryStream(_data, 8 + (int)liquid[x][y].OffsetAttributes, _data.Length - (8 + (int)liquid[x][y].OffsetAttributes))).Read<adt_liquid_attributes>();
+                return new adt_liquid_attributes() { Fishable = 0xFFFFFFFFFFFFFFFF, Deep = 0xFFFFFFFFFFFFFFFF };
+            }
+            return default(adt_liquid_attributes);
+        }
 
-                float[] value = new float[_data.Length - index];
-                Buffer.BlockCopy(_data, index, value, 0, value.Length);
-                return value;
+        public ushort GetLiquidType(adt_liquid_instance h)
+        {
+            if (GetLiquidVertexFormat(h) == LiquidVertexFormatType.Depth)
+                return 2;
+
+            return h.LiquidType;
+        }
+
+        public float GetLiquidHeight(adt_liquid_instance h, int pos)
+        {
+            if (h.OffsetVertexData == 0)
+                return 0.0f;
+            if (GetLiquidVertexFormat(h) == LiquidVertexFormatType.Depth)
+                return 0.0f;
+
+            switch (GetLiquidVertexFormat(h))
+            {
+                case LiquidVertexFormatType.HeightDepth:
+                case LiquidVertexFormatType.HeightTextureCoord:
+                case LiquidVertexFormatType.HeightDepthTextureCoord:
+                    return BitConverter.ToSingle(_data, (int)(8 + h.OffsetVertexData + pos * 4));
+                case LiquidVertexFormatType.Depth:
+                    return 0.0f;
+                case LiquidVertexFormatType.Unk4:
+                case LiquidVertexFormatType.Unk5:
+                    return BitConverter.ToSingle(_data, (int)(8 + h.OffsetVertexData + 4 + (pos * 4) * 2));
+                default:
+                    break;
             }
 
-            return null;
+            return 0.0f;
         }
 
-        public byte[] getLiquidLightMap(adt_liquid_header h)
+        public int GetLiquidDepth(adt_liquid_instance h, int pos)
         {
-            if (Convert.ToBoolean(h.formatFlags & 0x01))
+            if (h.OffsetVertexData == 0)
+                return -1;
+
+            switch (GetLiquidVertexFormat(h))
+            {
+                case LiquidVertexFormatType.HeightDepth:
+                    return (sbyte)_data[8 + h.OffsetVertexData + (h.GetWidth() + 1) * (h.GetHeight() + 1) * 4 + pos];
+                case LiquidVertexFormatType.HeightTextureCoord:
+                    return 0;
+                case LiquidVertexFormatType.Depth:
+                    return (sbyte)_data[8 + h.OffsetVertexData + pos];
+                case LiquidVertexFormatType.HeightDepthTextureCoord:
+                    return (sbyte)_data[8 + h.OffsetVertexData + (h.GetWidth() + 1) * (h.GetHeight() + 1) * 8 + pos];
+                case LiquidVertexFormatType.Unk4:
+                    return (sbyte)_data[8 + h.OffsetVertexData + pos * 8];
+                case LiquidVertexFormatType.Unk5:
+                    return 0;
+                default:
+                    break;
+            }
+            return 0;
+        }
+
+        ushort? GetLiquidTextureCoordMap(adt_liquid_instance h, int pos)
+        {
+            if (h.OffsetVertexData == 0)
                 return null;
 
-            if (h.offsData2b != 0)
+            switch (GetLiquidVertexFormat(h))
             {
-                int index = (int)(8 + h.offsData2b + (h.width + 1) * (h.height + 1) * 4);
-                if (Convert.ToBoolean(h.formatFlags & 0x02))
-                    index = 8 + (int)h.offsData2b;
-
-                byte[] value = new byte[_data.Length - index];
-                Buffer.BlockCopy(_data, index, value, 0, value.Length);
-
-                return value;
+                case LiquidVertexFormatType.HeightDepth:
+                case LiquidVertexFormatType.Depth:
+                case LiquidVertexFormatType.Unk4:
+                    return null;
+                case LiquidVertexFormatType.HeightTextureCoord:
+                case LiquidVertexFormatType.HeightDepthTextureCoord:
+                    return BitConverter.ToUInt16(_data, (int)(8 + h.OffsetVertexData + 4 * ((h.GetWidth() + 1) * (h.GetHeight() + 1) + pos)));
+                case LiquidVertexFormatType.Unk5:
+                    return BitConverter.ToUInt16(_data, (int)(8 + h.OffsetVertexData + 8 * ((h.GetWidth() + 1) * (h.GetHeight() + 1) + pos)));
+                default:
+                    break;
             }
             return null;
         }
 
-        public ulong getLiquidShowMap(adt_liquid_header h)
+        public ulong GetLiquidExistsBitmap(adt_liquid_instance h)
         {
-            if (h.offsData2a != 0)
-                return BitConverter.ToUInt64(_data, 8 + (int)h.offsData2a);
+            if (h.OffsetExistsBitmap != 0)
+                return BitConverter.ToUInt64(_data, (int)(8 + h.OffsetExistsBitmap));
             else
-                return 0xFFFFFFFFFFFFFFFFu;
+                return 0xFFFFFFFFFFFFFFFFuL;
+        }
+
+        LiquidVertexFormatType GetLiquidVertexFormat(adt_liquid_instance liquidInstance)
+        {
+            if (liquidInstance.LiquidVertexFormat < 42)
+                return (LiquidVertexFormatType)liquidInstance.LiquidVertexFormat;
+
+            if (liquidInstance.LiquidType == 2)
+                return LiquidVertexFormatType.Depth;
+
+            var liquidType = CliDB.LiquidTypes.LookupByKey(liquidInstance.LiquidType);
+            if (liquidType != null)
+            {
+                if (CliDB.LiquidMaterials.ContainsKey(liquidType.MaterialID))
+                    return (LiquidVertexFormatType)CliDB.LiquidMaterials[liquidType.MaterialID];
+            }
+
+            return (LiquidVertexFormatType)(-1);
         }
     }
     class adt_MFBO : IMapStruct

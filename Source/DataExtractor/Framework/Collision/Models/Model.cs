@@ -47,14 +47,14 @@ namespace Framework.Collision
             spawn.flags = reader.ReadUInt32();
             spawn.adtId = reader.ReadUInt16();
             spawn.ID = reader.ReadUInt32();
-            spawn.iPos = reader.ReadStruct<Vector3>();
-            spawn.iRot = reader.ReadStruct<Vector3>();
+            spawn.iPos = reader.Read<Vector3>();
+            spawn.iRot = reader.Read<Vector3>();
             spawn.iScale = reader.ReadSingle();
 
             if ((spawn.flags & ModelFlags.HasBound) != 0) // only WMOs have bound in MPQ, only available after computation
             {
-                Vector3 bLow = reader.ReadStruct<Vector3>();
-                Vector3 bHigh = reader.ReadStruct<Vector3>();
+                Vector3 bLow = reader.Read<Vector3>();
+                Vector3 bHigh = reader.Read<Vector3>();
                 spawn.iBound = new AxisAlignedBox(bLow, bHigh);
             }
 

@@ -19,6 +19,8 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using Framework.CASC.Structures;
+using System;
+using System.Security.Cryptography;
 
 namespace Framework.CASC.Handlers
 {
@@ -46,7 +48,6 @@ namespace Framework.CASC.Handlers
                 if (readStream.ReadUInt32() != 0x45544C42)
                 {
                     Trace.TraceError($"data.{idxEntry.Index:000}: Invalid BLTE signature at 0x{readStream.BaseStream.Position:X8}.");
-
                     return null;
                 }
 
@@ -87,36 +88,105 @@ namespace Framework.CASC.Handlers
 
                 var data = new MemoryStream();
 
-                for (var i = 0; i < chunks; i++)
+                for (int i = 0; i < chunks; i++)
                 {
-                    var formatCode = readStream.ReadByte();
-                    var dataBytes = readStream.ReadBytes((int)blte.Chunks[i].CompressedSize - 1);
-
-                    // Not compressed
-                    if (formatCode == 0x4E)
-                        data.Write(dataBytes, 0, (int)blte.Chunks[i].UncompressedSize);
-                    // Compressed
-                    else if (formatCode == 0x5A)
-                    {
-                        using (var decompressed = new MemoryStream())
-                        {
-                            using (var inflate = new DeflateStream(new MemoryStream(dataBytes, 2, dataBytes.Length - 2), CompressionMode.Decompress))
-                                inflate.CopyTo(decompressed);
-
-                            var inflateData = decompressed.ToArray();
-                            data.Write(inflateData, 0, inflateData.Length);
-                        }
-                    }
-                    else
-                    {
-
-                    }
+                    var dataBytes = readStream.ReadBytes((int)blte.Chunks[i].CompressedSize);
+                    HandleDataBlock(dataBytes, i, data);
                 }
 
                 data.Position = 0;
-
-
                 return data;
+            }
+        }
+
+        private static void HandleDataBlock(byte[] data, int index, MemoryStream stream)
+        {
+            switch (data[0])
+            {
+                case 0x45: // E (encrypted)
+                    byte[] decrypted = Decrypt(data, index);
+                    if (decrypted == null)
+                        return;
+
+                    HandleDataBlock(decrypted, index, stream);
+                    break;
+                case 0x46: // F (frame, recursive)
+                    throw new Exception("DecoderFrame not implemented");
+                case 0x4E: // N (not compressed)
+                    stream.Write(data, 1, data.Length - 1);
+                    break;
+                case 0x5A: // Z (zlib compressed)
+                    using (var decompressed = new MemoryStream())
+                    {
+                        using (var inflate = new DeflateStream(new MemoryStream(data, 3, data.Length - 3), CompressionMode.Decompress))
+                            inflate.CopyTo(decompressed);
+
+                        var inflateData = decompressed.ToArray();
+                        stream.Write(inflateData, 0, inflateData.Length);
+                    }
+                    break;
+                default:
+                    throw new Exception(string.Format("unknown BLTE block type {0} (0x{1:X2})!", (char)data[0], data[0]));
+            }
+        }
+
+        private static byte[] Decrypt(byte[] data, int index)
+        {
+            byte keyNameSize = data[1];
+
+            if (keyNameSize == 0 || keyNameSize != 8)
+                throw new Exception("keyNameSize == 0 || keyNameSize != 8");
+
+            byte[] keyNameBytes = new byte[keyNameSize];
+            Array.Copy(data, 2, keyNameBytes, 0, keyNameSize);
+
+            ulong keyName = BitConverter.ToUInt64(keyNameBytes, 0);
+
+            byte IVSize = data[keyNameSize + 2];
+
+            if (IVSize != 4 || IVSize > 0x10)
+                throw new Exception("IVSize != 4 || IVSize > 0x10");
+
+            byte[] IVpart = new byte[IVSize];
+            Array.Copy(data, keyNameSize + 3, IVpart, 0, IVSize);
+
+            if (data.Length < IVSize + keyNameSize + 4)
+                throw new Exception("data.Length < IVSize + keyNameSize + 4");
+
+            int dataOffset = keyNameSize + IVSize + 3;
+
+            byte encType = data[dataOffset];
+
+            if (encType != 0x53 && encType != 0x41) // 'S' or 'A'
+                throw new Exception("encType != ENCRYPTION_SALSA20 && encType != ENCRYPTION_ARC4");
+
+            dataOffset++;
+
+            // expand to 8 bytes
+            byte[] IV = new byte[8];
+            Array.Copy(IVpart, IV, IVpart.Length);
+
+            // magic
+            for (int shift = 0, i = 0; i < sizeof(int); shift += 8, i++)
+            {
+                IV[i] ^= (byte)((index >> shift) & 0xFF);
+            }
+
+            byte[] key = KeyService.GetKey(keyName);
+
+            if (key == null)
+                return null;
+
+            if (encType == 0x53)
+            {
+                ICryptoTransform decryptor = KeyService.SalsaInstance.CreateDecryptor(key, IV);
+
+                return decryptor.TransformFinalBlock(data, dataOffset, data.Length - dataOffset);
+            }
+            else
+            {
+                // ARC4 ?
+                throw new Exception("encType ENCRYPTION_ARC4 not implemented");
             }
         }
     }

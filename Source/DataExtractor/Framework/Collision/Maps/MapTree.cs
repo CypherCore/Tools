@@ -48,7 +48,7 @@ namespace Framework.Collision
             if (!File.Exists(fullname))
                 return false;
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(fullname, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(fullname, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
 
                 if (binaryReader.ReadStringFromChars(8) == SharedConst.VMAP_MAGIC)
@@ -104,7 +104,7 @@ namespace Framework.Collision
             string tilefile = iBasePath + getTileFileName(iMapID, tileX, tileY);
             if (File.Exists(tilefile))
             {
-                using (BinaryReader binaryReader = new BinaryReader(File.Open(tilefile, FileMode.Open, FileAccess.Read)))
+                using (BinaryReader binaryReader = new BinaryReader(File.Open(tilefile, FileMode.Open, FileAccess.Read, FileShare.Read)))
                 {
                     if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
                         return false;
@@ -164,7 +164,7 @@ namespace Framework.Collision
                 string tilefile = iBasePath + getTileFileName(iMapID, tileX, tileY);
                 if (File.Exists(tilefile))
                 {
-                    using (BinaryReader binaryReader = new BinaryReader(File.Open(tilefile, FileMode.Open, FileAccess.Read)))
+                    using (BinaryReader binaryReader = new BinaryReader(File.Open(tilefile, FileMode.Open, FileAccess.Read, FileShare.Read)))
                     {
                         bool result = true;
                         if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
