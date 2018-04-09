@@ -82,7 +82,7 @@ namespace System
             return Encoding.UTF8.GetString(values);
         }
 
-        public static T ReadStruct<T>(this BinaryReader reader) where T : struct
+        public static T ReadStruct<T>(this BinaryReader reader, int size = 0) where T : struct
         {
             byte[] data = reader.ReadBytes(Marshal.SizeOf(typeof(T)));
             GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
