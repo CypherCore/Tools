@@ -1,0 +1,16 @@
+version: '{build}'
+pull_requests:
+  do_not_increment_build_number: true
+
+image: Visual Studio 2017
+
+clone_script:
+- cmd: git clone -q --branch=master --recursive https://github.com/CypherCore/Tools.git C:\projects\Tools-master
+
+build_script:
+- cmd: >-
+    cd "C:/projects/Tools-master"
+
+    dotnet restore
+
+    dotnet build /p:Platform=win-x64
