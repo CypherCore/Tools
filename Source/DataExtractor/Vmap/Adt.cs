@@ -19,17 +19,33 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DataExtractor.Vmap.Collision;
+using Framework.Constants;
+using Framework.GameMath;
+using System.Runtime.InteropServices;
 
 namespace DataExtractor.Vmap
 {
     class ADTFile
     {
-        public bool init(string fileName, uint map_num, uint tileX, uint tileY)
+        public ADTFile(string filename, bool cache)
         {
-            MemoryStream stream = Program.cascHandler.ReadFile(fileName);
+            Adtfilename = filename;
+            cacheable = cache;
+            dirfileCache = null;
+        }
+
+        public bool init(uint map_num, uint tileX, uint tileY, uint originalMapId)
+        {
+            if (dirfileCache != null)
+                return initFromCache(map_num, tileX, tileY, originalMapId);
+
+            MemoryStream stream = Program.cascHandler.ReadFile(Adtfilename);
             if (stream == null)
                 return false;
-            
+
+            if (cacheable)
+                dirfileCache = new List<ADTOutputCache>();
+
             string dirname = Program.wmoDirectory + "dir_bin";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
             {
@@ -57,10 +73,7 @@ namespace DataExtractor.Vmap
                                     string path = binaryReader.ReadCString();
 
                                     ModelInstanceNames.Add(path.GetPlainName());
-                                    if (path.GetPlainName() == "Skullcandle02.m2")
-                                    {
 
-                                    }
                                     VmapFile.ExtractSingleModel(path);
 
                                     size -= (uint)(path.Length + 1);
@@ -87,11 +100,20 @@ namespace DataExtractor.Vmap
                         {
                             if (size != 0)
                             {
-                                nMDX = (int)size / 36;
-                                for (int i = 0; i < nMDX; ++i)
+                                uint doodadCount = size / 36; //sizeof(MDDF)
+                                for (int i = 0; i < doodadCount; ++i)
                                 {
-                                    int id = binaryReader.ReadInt32();
-                                    ModelInstance inst = new ModelInstance(binaryReader, ModelInstanceNames[id], map_num, tileX, tileY, binaryWriter);
+                                    MDDF doodadDef = binaryReader.Read<MDDF>();
+                                    if (!Convert.ToBoolean(doodadDef.Flags & 0x40))
+                                    {
+                                        Model.Extract(doodadDef, ModelInstanceNames[(int)doodadDef.Id], map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                    }
+                                    else
+                                    {
+                                        string fileName = $"FILE{doodadDef.Id}:X8.xxx";
+                                        VmapFile.ExtractSingleModel(fileName);
+                                        Model.Extract(doodadDef, fileName, map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                    }
                                 }
 
                                 ModelInstanceNames.Clear();
@@ -101,11 +123,20 @@ namespace DataExtractor.Vmap
                         {
                             if (size != 0)
                             {
-                                nWMO = (int)size / 64;
-                                for (int i = 0; i < nWMO; ++i)
+                                uint mapObjectCount = size / 64; // sizeof(ADT::MODF);
+                                for (int i = 0; i < mapObjectCount; ++i)
                                 {
-                                    int id = binaryReader.ReadInt32();
-                                    WMOInstance inst = new WMOInstance(binaryReader, WmoInstanceNames[id], map_num, tileX, tileY, binaryWriter);
+                                    MODF mapObjDef = binaryReader.Read<MODF>();
+                                    if (!Convert.ToBoolean(mapObjDef.Flags & 0x8))
+                                    {
+                                        WMORoot.Extract(mapObjDef, WmoInstanceNames[(int)mapObjDef.Id], map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                    }
+                                    else
+                                    {
+                                        string fileName = $"FILE{mapObjDef.Id}:8X.xxx";
+                                        VmapFile.ExtractSingleModel(fileName);
+                                        WMORoot.Extract(mapObjDef, fileName, map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                    }
                                 }
 
                                 WmoInstanceNames.Clear();
@@ -121,9 +152,65 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        int nWMO;
-        int nMDX;
+        bool initFromCache(uint map_num, uint tileX, uint tileY, uint originalMapId)
+        {
+            if (dirfileCache.Empty())
+                return true;
+
+            string dirname = Program.wmoDirectory + "dir_bin";
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
+            {
+                foreach (ADTOutputCache cached in dirfileCache)
+                {
+                    binaryWriter.Write(map_num);
+                    binaryWriter.Write(tileX);
+                    binaryWriter.Write(tileY);
+                    uint flags = cached.Flags;
+                    if (map_num != originalMapId)
+                        flags |= ModelFlags.ParentSpawn;
+                    binaryWriter.Write(flags);
+                    binaryWriter.Write(cached.Data);
+                }
+            }
+
+            return true;
+        }
+
+        string Adtfilename;
+        bool cacheable;
+        List<ADTOutputCache> dirfileCache = new List<ADTOutputCache>();
         List<string> WmoInstanceNames = new List<string>();
         List<string> ModelInstanceNames = new List<string>();
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct MDDF
+    {
+        public uint Id { get; set; }
+        public uint UniqueId { get; set; }
+        public Vector3 Position { get; set; }
+        public Vector3 Rotation { get; set; }
+        public ushort Scale { get; set; }
+        public ushort Flags { get; set; }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct MODF
+    {
+        public uint Id;
+        public uint UniqueId;
+        public Vector3 Position;
+        public Vector3 Rotation;
+        public AxisAlignedBox Bounds;
+        public ushort Flags;
+        public ushort DoodadSet;
+        public ushort NameSet;
+        public ushort Scale;
+    }
+
+    public struct ADTOutputCache
+    {
+        public uint Flags { get; set; }
+        public byte[] Data { get; set; }
     }
 }

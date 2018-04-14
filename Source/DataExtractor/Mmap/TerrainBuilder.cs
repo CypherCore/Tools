@@ -24,11 +24,17 @@ using Framework.GameMath;
 using System.Linq;
 using Framework.Collision;
 using DataExtractor.Vmap.Collision;
+using DataExtractor;
 
 namespace DataExtractor.Mmap
 {
     class TerrainBuilder
     {
+        public TerrainBuilder(VMapManager2 vm)
+        {
+            vmapManager = vm;
+        }
+
         void getLoopVars(Spot portion, ref int loopStart, ref int loopEnd, ref int loopInc)
         {
             switch (portion)
@@ -62,7 +68,7 @@ namespace DataExtractor.Mmap
         }
 
         /**************************************************************************/
-        public void loadMap(uint mapID, uint tileX, uint tileY, MeshData meshData)
+        public void loadMap(uint mapID, uint tileX, uint tileY, MeshData meshData, VMapManager2 vm)
         {
             if (loadMap(mapID, tileX, tileY, meshData, Spot.Entire))
             {
@@ -78,11 +84,18 @@ namespace DataExtractor.Mmap
         {
             string mapFileName = $"maps/{mapID:D4}_{tileY:D2}_{tileX:D2}.map";
             if (!File.Exists(mapFileName))
+            {
+                int parentMapId = vmapManager.getParentMapId(mapID);
+                if (parentMapId != -1)
+                    mapFileName = $"maps/{parentMapId:D4}_{tileY:D2}_{tileX:D2}.map";
+            }
+
+            if (!File.Exists(mapFileName))
                 return false;
 
-            using (BinaryReader reader = new BinaryReader(File.Open(mapFileName, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader reader = new BinaryReader(File.Open(mapFileName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
-                map_fileheader fheader = reader.ReadStruct<map_fileheader>();
+                map_fileheader fheader = reader.Read<map_fileheader>();
                 if (fheader.versionMagic != SharedConst.MAP_VERSION_MAGIC)
                 {
                     Console.WriteLine($"{mapFileName} is the wrong version, please extract new .map files");
@@ -93,7 +106,7 @@ namespace DataExtractor.Mmap
                 bool haveLiquid = false;
 
                 reader.BaseStream.Seek(fheader.heightMapOffset, SeekOrigin.Begin);
-                map_heightHeader hheader = reader.ReadStruct<map_heightHeader>();
+                map_heightHeader hheader = reader.Read<map_heightHeader>();
                 if (hheader.fourcc == 1413957709)
                 {
                     haveTerrain = !Convert.ToBoolean(hheader.flags & (uint)MapHeightFlags.NoHeight);
@@ -112,9 +125,14 @@ namespace DataExtractor.Mmap
                     for (var x = 0; x < 16; ++x)
                         holes[i][x] = new byte[8];
                 }
-                byte[][] liquid_type = new byte[16][];
+
+                ushort[][] liquid_entry = new ushort[16][];
+                byte[][] liquid_flags = new byte[16][];
                 for (var i = 0; i < 16; ++i)
-                    liquid_type[i] = new byte[16];
+                {
+                    liquid_entry[i] = new ushort[16];
+                    liquid_flags[i] = new byte[16];
+                }
 
                 List<int> ltriangles = new List<int>();
                 List<int> ttriangles = new List<int>();
@@ -235,14 +253,29 @@ namespace DataExtractor.Mmap
                 if (haveLiquid)
                 {
                     reader.BaseStream.Seek(fheader.liquidMapOffset, SeekOrigin.Begin);
-                    map_liquidHeader lheader = reader.ReadStruct<map_liquidHeader>();
+                    map_liquidHeader lheader = reader.Read<map_liquidHeader>();
 
                     float[] liquid_map = null;
                     if (!Convert.ToBoolean(lheader.flags & 0x0001))
                     {
                         for (var i = 0; i < 16; ++i)
                             for (var x = 0; x < 16; ++x)
-                                liquid_type[i][x] = reader.ReadByte();
+                                liquid_entry[i][x] = reader.ReadUInt16();
+
+                        for (var i = 0; i < 16; ++i)
+                            for (var x = 0; x < 16; ++x)
+                                liquid_flags[i][x] = reader.ReadByte();
+                    }
+                    else
+                    {
+                        for (var i = 0; i < 16; ++i)
+                        {
+                            for (var x = 0; x < 16; ++x)
+                            {
+                                liquid_entry[i][x] = lheader.liquidType;
+                                liquid_flags[i][x] = lheader.liquidFlags;
+                            }
+                        }
                     }
 
                     if (!Convert.ToBoolean(lheader.flags & 0x0002))
@@ -253,67 +286,66 @@ namespace DataExtractor.Mmap
                             liquid_map[i] = reader.ReadSingle();
                     }
 
-                    if (liquid_map != null)
+                    int count = meshData.liquidVerts.Count / 3;
+                    float xoffset = (tileX - 32) * SharedConst.GRID_SIZE;
+                    float yoffset = (tileY - 32) * SharedConst.GRID_SIZE;
+
+                    float[] coord = new float[3];
+                    int row, col;
+
+                    // generate coordinates
+                    if (!Convert.ToBoolean(lheader.flags & 0x0002))
                     {
-                        int count = meshData.liquidVerts.Count / 3;
-                        float xoffset = (tileX - 32) * SharedConst.GRID_SIZE;
-                        float yoffset = (tileY - 32) * SharedConst.GRID_SIZE;
-
-                        float[] coord = new float[3];
-                        int row, col;
-
-                        // generate coordinates
-                        if (!Convert.ToBoolean(lheader.flags & 0x0002))
+                        int j = 0;
+                        for (int i = 0; i < SharedConst.V9_SIZE_SQ; ++i)
                         {
-                            int j = 0;
-                            for (int i = 0; i < SharedConst.V9_SIZE_SQ; ++i)
-                            {
-                                row = i / SharedConst.V9_SIZE;
-                                col = i % SharedConst.V9_SIZE;
+                            row = i / SharedConst.V9_SIZE;
+                            col = i % SharedConst.V9_SIZE;
 
-                                if (row < lheader.offsetY || row >= lheader.offsetY + lheader.height ||
-                                    col < lheader.offsetX || col >= lheader.offsetX + lheader.width)
-                                {
-                                    // dummy vert using invalid height
-                                    meshData.liquidVerts.Add((xoffset + col * SharedConst.GRID_PART_SIZE) * -1);
-                                    meshData.liquidVerts.Add(SharedConst.INVALID_MAP_LIQ_HEIGHT);
-                                    meshData.liquidVerts.Add((yoffset + row * SharedConst.GRID_PART_SIZE) * -1);
-                                    continue;
-                                }
-
-                                getLiquidCoord(i, j, xoffset, yoffset, ref coord, ref liquid_map);
-                                meshData.liquidVerts.Add(coord[0]);
-                                meshData.liquidVerts.Add(coord[2]);
-                                meshData.liquidVerts.Add(coord[1]);
-                                j++;
-                            }
-                        }
-                        else
-                        {
-                            for (int i = 0; i < SharedConst.V9_SIZE_SQ; ++i)
+                            if (row < lheader.offsetY || row >= lheader.offsetY + lheader.height ||
+                                col < lheader.offsetX || col >= lheader.offsetX + lheader.width)
                             {
-                                row = i / SharedConst.V9_SIZE;
-                                col = i % SharedConst.V9_SIZE;
+                                // dummy vert using invalid height
                                 meshData.liquidVerts.Add((xoffset + col * SharedConst.GRID_PART_SIZE) * -1);
-                                meshData.liquidVerts.Add(lheader.liquidLevel);
+                                meshData.liquidVerts.Add(SharedConst.INVALID_MAP_LIQ_HEIGHT);
                                 meshData.liquidVerts.Add((yoffset + row * SharedConst.GRID_PART_SIZE) * -1);
+                                continue;
                             }
+
+                            getLiquidCoord(i, j, xoffset, yoffset, ref coord, ref liquid_map);
+                            meshData.liquidVerts.Add(coord[0]);
+                            meshData.liquidVerts.Add(coord[2]);
+                            meshData.liquidVerts.Add(coord[1]);
+                            j++;
                         }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < SharedConst.V9_SIZE_SQ; ++i)
+                        {
+                            row = i / SharedConst.V9_SIZE;
+                            col = i % SharedConst.V9_SIZE;
+                            meshData.liquidVerts.Add((xoffset + col * SharedConst.GRID_PART_SIZE) * -1);
+                            meshData.liquidVerts.Add(lheader.liquidLevel);
+                            meshData.liquidVerts.Add((yoffset + row * SharedConst.GRID_PART_SIZE) * -1);
+                        }
+                    }
 
 
-                        int[] indices = { 0, 0, 0 };
-                        int loopStart = 0, loopEnd = 0, loopInc = 0, triInc = Spot.Bottom - Spot.Top;
-                        getLoopVars(portion, ref loopStart, ref loopEnd, ref loopInc);
+                    int[] indices = { 0, 0, 0 };
+                    int loopStart = 0, loopEnd = 0, loopInc = 0, triInc = Spot.Bottom - Spot.Top;
+                    getLoopVars(portion, ref loopStart, ref loopEnd, ref loopInc);
 
-                        // generate triangles
-                        for (int i = loopStart; i < loopEnd; i += loopInc)
-                            for (Spot j = Spot.Top; j <= Spot.Bottom; j += triInc)
-                            {
-                                getHeightTriangle(i, j, indices, true);
-                                ltriangles.Add(indices[2] + count);
-                                ltriangles.Add(indices[1] + count);
-                                ltriangles.Add(indices[0] + count);
-                            }
+                    // generate triangles
+                    for (int i = loopStart; i < loopEnd; i += loopInc)
+                    {
+                        for (Spot j = Spot.Top; j <= Spot.Bottom; j += triInc)
+                        {
+                            getHeightTriangle(i, j, indices, true);
+                            ltriangles.Add(indices[2] + count);
+                            ltriangles.Add(indices[1] + count);
+                            ltriangles.Add(indices[0] + count);
+                        }
                     }
                 }
 
@@ -349,36 +381,27 @@ namespace DataExtractor.Mmap
                         useTerrain = true;
                         useLiquid = true;
                         NavTerrain navTerrain = 0;
-                        // FIXME: "warning: the address of ‘liquid_type’ will always evaluate as ‘true’"
 
                         // if there is no liquid, don't use liquid
                         if (meshData.liquidVerts.Count == 0 || ltriangles.Count == 0)
                             useLiquid = false;
                         else
                         {
-                            LiquidTypeMask liquidType = (LiquidTypeMask)getLiquidType(i, liquid_type);
-                            switch (liquidType)
+                            byte liquidType = getLiquidType(i, liquid_flags);
+                            if (Convert.ToBoolean(liquidType & (byte)LiquidTypeMask.DarkWater))
                             {
-                                default:
-                                    useLiquid = false;
-                                    break;
-                                case LiquidTypeMask.Water:
-                                case LiquidTypeMask.Ocean:
-                                    // merge different types of water
-                                    navTerrain = NavTerrain.Water;
-                                    break;
-                                case LiquidTypeMask.Magma:
-                                    navTerrain = NavTerrain.Magma;
-                                    break;
-                                case LiquidTypeMask.Slime:
-                                    navTerrain = NavTerrain.Slime;
-                                    break;
-                                case LiquidTypeMask.DarkWater:
-                                    // players should not be here, so logically neither should creatures
-                                    useTerrain = false;
-                                    useLiquid = false;
-                                    break;
+                                // players should not be here, so logically neither should creatures
+                                useTerrain = false;
+                                useLiquid = false;
                             }
+                            else if((liquidType & (byte)(LiquidTypeMask.Water | LiquidTypeMask.Ocean)) != 0)
+                                liquidType = (byte)NavTerrain.Water;
+                            else if (Convert.ToBoolean(liquidType & (byte)LiquidTypeMask.Magma))
+                                liquidType = (byte)NavTerrain.Magma;
+                            else if (Convert.ToBoolean(liquidType & (byte)LiquidTypeMask.Slime))
+                                liquidType = (byte)NavTerrain.Slime;
+                            else
+                                useLiquid = false;
                         }
 
                         // if there is no terrain, don't use terrain
@@ -582,13 +605,12 @@ namespace DataExtractor.Mmap
         /**************************************************************************/
         public bool loadVMap(uint mapID, uint tileX, uint tileY, MeshData meshData)
         {
-            var vmapManager = new VMapManager2();
-            VMAPLoadResult result = vmapManager.loadMap("vmaps", mapID, tileX, tileY);
+            bool result = vmapManager.loadSingleMap(mapID, "vmaps", tileX, tileY);
             bool retval = false;
 
             do
             {
-                if (result == 0)
+                if (!result)
                     break;
 
                 Dictionary<uint, StaticMapTree> instanceTrees;
@@ -622,7 +644,7 @@ namespace DataExtractor.Mmap
                     worldModel.getGroupModels(out groupModels);
 
                     // all M2s need to have triangle indices reversed
-                    bool isM2 = instance.name.Contains(".m2") || instance.name.Contains(".M2");
+                    bool isM2 = (instance.flags & ModelFlags.M2) != 0;
 
                     // transform data
                     float scale = instance.iScale;
@@ -649,7 +671,7 @@ namespace DataExtractor.Mmap
                         copyIndices(tempTriangles, meshData.solidTris, offset, isM2);
 
                         // now handle liquid data
-                        if (liquid != null)
+                        if (liquid != null && liquid.iFlags != null)
                         {
                             List<Vector3> liqVerts = new List<Vector3>();
                             List<uint> liqTris = new List<uint>();
@@ -743,7 +765,7 @@ namespace DataExtractor.Mmap
             }
             while (false);
 
-            vmapManager.unloadMap(mapID, tileX, tileY);
+            vmapManager.unloadSingleMap(mapID, tileX, tileY);
 
             return retval;
         }
@@ -853,7 +875,7 @@ namespace DataExtractor.Mmap
                 return;
             }
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(offMeshFilePath, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(offMeshFilePath, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 // pretty silly thing, as we parse entire file and load only the tile we need
                 // but we don't expect this file to be too large
@@ -893,6 +915,8 @@ namespace DataExtractor.Mmap
         }
 
         public bool usesLiquids() { return true; }// !m_skipLiquid; }
+
+        VMapManager2 vmapManager;
     }
 
     public struct map_fileheader
@@ -916,18 +940,6 @@ namespace DataExtractor.Mmap
         public uint flags;
         public float gridHeight;
         public float gridMaxHeight;
-    }
-
-    public struct map_liquidHeader
-    {
-        public uint fourcc;
-        public ushort flags;
-        public ushort liquidType;
-        public byte offsetX;
-        public byte offsetY;
-        public byte width;
-        public byte height;
-        public float liquidLevel;
     }
 
     class MeshData

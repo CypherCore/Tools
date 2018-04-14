@@ -32,18 +32,31 @@ namespace Framework.Collision
 
     public class VMapManager2
     {
+        public void Initialize(MultiMap<uint, uint> mapData)
+        {
+            iChildMapData = mapData;
+            foreach (var pair in mapData)
+                iParentMapData[pair.Value] = pair.Key;
+        }
+
         public VMAPLoadResult loadMap(string basePath, uint mapId, uint x, uint y)
         {
             var result = VMAPLoadResult.Ignored;
-            if (_loadMap(mapId, basePath, x, y))
+            if (loadSingleMap(mapId, basePath, x, y))
+            {
                 result = VMAPLoadResult.OK;
+                var childMaps = iChildMapData.LookupByKey(mapId);
+                foreach (uint childMapId in childMaps)
+                    if (!loadSingleMap(childMapId, basePath, x, y))
+                        result = VMAPLoadResult.Error;
+            }
             else
                 result = VMAPLoadResult.Error;
 
             return result;
         }
 
-        bool _loadMap(uint mapId, string basePath, uint tileX, uint tileY)
+        public bool loadSingleMap(uint mapId, string basePath, uint tileX, uint tileY)
         {
             var instanceTree = iInstanceMapTrees.LookupByKey(mapId);
             if (instanceTree == null)
@@ -109,6 +122,15 @@ namespace Framework.Collision
 
         public void unloadMap(uint mapId, uint x, uint y)
         {
+            var childMaps = iChildMapData.LookupByKey(mapId);
+            foreach (uint childMapId in childMaps)
+                unloadSingleMap(childMapId, x, y);
+
+            unloadSingleMap(mapId, x, y);
+        }
+
+        public void unloadSingleMap(uint mapId, uint x, uint y)
+        {
             var instanceTree = iInstanceMapTrees.LookupByKey(mapId);
             if (instanceTree != null)
             {
@@ -120,8 +142,18 @@ namespace Framework.Collision
             }
         }
 
+        public int getParentMapId(uint mapId)
+        {
+            if (iParentMapData.ContainsKey(mapId))
+                return (int)iParentMapData[mapId];
+
+            return -1;
+        }
+
         Dictionary<string, ManagedModel> iLoadedModelFiles = new Dictionary<string, ManagedModel>();
         Dictionary<uint, StaticMapTree> iInstanceMapTrees = new Dictionary<uint, StaticMapTree>();
+        MultiMap<uint, uint> iChildMapData = new MultiMap<uint, uint>();
+        Dictionary<uint, uint> iParentMapData = new Dictionary<uint, uint>();
     }
 
     public class ManagedModel

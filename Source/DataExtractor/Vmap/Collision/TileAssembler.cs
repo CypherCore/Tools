@@ -22,6 +22,8 @@ using Framework.GameMath;
 using Framework.Constants;
 using System.Linq;
 using Framework.Collision;
+using System.Threading.Tasks;
+using DataExtractor.Vmap;
 
 namespace DataExtractor.Vmap.Collision
 {
@@ -53,7 +55,7 @@ namespace DataExtractor.Vmap.Collision
                     if (Convert.ToBoolean(entry.flags & ModelFlags.M2))
                     {
                         if (!calculateTransformedBound(entry))
-                            break;
+                            continue;
                     }
                     else if (Convert.ToBoolean(entry.flags & ModelFlags.WorldSpawn)) // WMO maps and terrain maps use different origin, so we need to adapt :/
                     {
@@ -67,21 +69,9 @@ namespace DataExtractor.Vmap.Collision
 
                 Console.WriteLine($"Creating map tree for map {mapPair.Key}...");
                 BIH pTree = new BIH();
-
-                try
-                {
-                    pTree.build(mapSpawns, BoundsTrait.getBounds);
-                }
-                catch (Exception e)
-                {
-                    Console.Write($"Exception {e.Message} when calling pTree.build");
-                    return false;
-                }
+                pTree.build(mapSpawns, BoundsTrait.getBounds);
 
                 // ===> possibly move this code to StaticMapTree class
-                Dictionary<uint, uint> modelNodeIdx = new Dictionary<uint, uint>();
-                for (uint i = 0; i < mapSpawns.Count; ++i)
-                    modelNodeIdx.Add(mapSpawns[(int)i].ID, i);
 
                 // write map tree file
                 string mapfilename = $"{iDestDir}/{mapPair.Key:D4}.vmtree";
@@ -101,43 +91,50 @@ namespace DataExtractor.Vmap.Collision
                     writer.WriteString("GOBJ");
 
                     foreach (var glob in globalRange)
-                        ModelSpawn.writeToFile(writer, mapSpawn.UniqueEntries[glob]);
-                }                
+                        ModelSpawn.writeToFile(writer, mapSpawn.UniqueEntries[glob.Id]);
+
+                    // spawn id to index map
+                    writer.WriteString("SIDX");
+                    writer.Write(mapSpawns.Count);
+                    for (int i = 0; i < mapSpawns.Count; ++i)
+                    {
+                        writer.Write(mapSpawns[i].ID);
+                        writer.Write(i);
+                    }
+                }
 
                 // write map tile files, similar to ADT files, only with extra BSP tree node info
-                var tileEntries = mapSpawn.TileEntries;
-                foreach (var key in tileEntries.Keys)
+                foreach (var key in mapSpawn.TileEntries.Keys)
                 {
-                    ModelSpawn spawn = mapSpawn.UniqueEntries[tileEntries[key].First()];
-                    if (Convert.ToBoolean(spawn.flags & ModelFlags.WorldSpawn)) // WDT spawn, saved as tile 65/65 currently...
+                    var spawnList = mapSpawn.TileEntries[key];
+
+                    if (Convert.ToBoolean(spawnList.First().Flags & ModelFlags.WorldSpawn)) // WDT spawn, saved as tile 65/65 currently...
+                        continue;
+                    if (Convert.ToBoolean(spawnList.First().Flags & ModelFlags.ParentSpawn)) // tile belongs to parent map
                         continue;
 
-                    string tilefilename = $"{iDestDir}/{mapPair.Key:D4}_";
                     uint x, y;
                     StaticMapTree.unpackTileID(key, out x, out y);
-                    tilefilename += $"{x:D2}_{y:D2}.vmtile";
+                    string tilefilename =  $"{iDestDir}/{mapPair.Key:D4}_{x:D2}_{y:D2}.vmtile";
                     using (BinaryWriter writer = new BinaryWriter(File.Open(tilefilename, FileMode.Create, FileAccess.Write)))
-                    {     
+                    {
                         // file header
                         writer.WriteString(SharedConst.VMAP_MAGIC);
                         // write number of tile spawns
-                        writer.Write(tileEntries[key].Count);
+                        writer.Write(spawnList.Count);
                         // write tile spawns
-                        foreach (var nSpawn in tileEntries[key])
+                        foreach (var nSpawn in spawnList)
                         {
-                            ModelSpawn spawn2 = mapSpawn.UniqueEntries[nSpawn];
+                            ModelSpawn spawn2 = mapSpawn.UniqueEntries[nSpawn.Id];
                             ModelSpawn.writeToFile(writer, spawn2);
-                            // MapTree nodes to update when loading tile:
-                            var nIdx = modelNodeIdx[spawn2.ID];
-                            writer.Write(nIdx);
                         }
                     }
                 }
-                // break; //test, extract only first map; TODO: remvoe this line
             }
 
             // add an object models, listed in temp_gameobject_models file
             exportGameobjectModels();
+
             // export objects
             Console.WriteLine("Converting Model Files");
             foreach (var mfile in spawnedModelFiles)
@@ -158,7 +155,7 @@ namespace DataExtractor.Vmap.Collision
                 return false;
             }
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(fname, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(fname, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 Console.WriteLine("Read coordinate mapping...");
                 uint mapID, tileX, tileY;
@@ -166,7 +163,7 @@ namespace DataExtractor.Vmap.Collision
 
                 while (binaryReader.BaseStream.Position + 4 < binaryReader.BaseStream.Length)
                 {
-                    // read mapID, tileX, tileY, Flags, adtID, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+                    // read mapID, tileX, tileY, Flags, NameSet, UniqueId, Pos, Rot, Scale, Bound_lo, Bound_hi, name
                     mapID = binaryReader.ReadUInt32();
                     tileX = binaryReader.ReadUInt32();
                     tileY = binaryReader.ReadUInt32();
@@ -185,7 +182,7 @@ namespace DataExtractor.Vmap.Collision
 
                     if (!current.UniqueEntries.ContainsKey(spawn.ID))
                         current.UniqueEntries.Add(spawn.ID, spawn);
-                    current.TileEntries.Add(StaticMapTree.packTileID(tileX, tileY), spawn.ID);
+                    current.TileEntries.Add(StaticMapTree.packTileID(tileX, tileY), new TileSpawn(spawn.ID, spawn.flags));
                 }
             }
 
@@ -270,7 +267,6 @@ namespace DataExtractor.Vmap.Collision
             }
 
             model.writeFile(iDestDir + "/" + pModelFilename + ".vmo");
-            //std::cout << "readRawFile2: '" << pModelFilename << "' tris: " << nElements << " nodes: " << nNodes << std::endl;
         }
 
         void exportGameobjectModels()
@@ -278,14 +274,20 @@ namespace DataExtractor.Vmap.Collision
             if (!File.Exists(iSrcDir + "/" + "temp_gameobject_models"))
                 return;
 
-            using (BinaryReader reader = new BinaryReader(File.Open(iSrcDir + "/" + "temp_gameobject_models", FileMode.Open, FileAccess.Read)))
+            using (BinaryReader reader = new BinaryReader(File.Open(iSrcDir + "/" + "temp_gameobject_models", FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
+                string magic = reader.ReadCString();
+                if (magic != SharedConst.RAW_VMAP_MAGIC)
+                    return;
+
                 using (BinaryWriter writer = new BinaryWriter(File.OpenWrite(iDestDir + "/" + "GameObjectModels.dtree")))
                 {
+                    writer.WriteString(SharedConst.VMAP_MAGIC);
+
                     while (reader.BaseStream.Position < reader.BaseStream.Length)
                     {
                         uint displayId = reader.ReadUInt32();
-
+                        bool isWmo = reader.ReadBoolean();
                         int name_length = reader.ReadInt32();
                         string model_name = reader.ReadString(name_length);
 
@@ -302,8 +304,7 @@ namespace DataExtractor.Vmap.Collision
                             if (vertices == null)
                                 continue;
 
-                            int nvectors = vertices.Count;
-                            for (int i = 0; i < nvectors; ++i)
+                            for (int i = 0; i < vertices.Count; ++i)
                             {
                                 Vector3 v = vertices[i];
                                 if (boundEmpty)
@@ -329,6 +330,7 @@ namespace DataExtractor.Vmap.Collision
                         }
 
                         writer.Write(displayId);
+                        writer.Write(isWmo);
                         writer.Write(name_length);
                         writer.WriteString(model_name);
                         writer.WriteVector3(bounds.Lo);
@@ -349,7 +351,7 @@ namespace DataExtractor.Vmap.Collision
     class MapSpawns
     {
         public SortedDictionary<uint, ModelSpawn> UniqueEntries = new SortedDictionary<uint, ModelSpawn>();
-        public MultiMap<uint, uint> TileEntries = new MultiMap<uint, uint>();
+        public MultiMap<uint, TileSpawn> TileEntries = new MultiMap<uint, TileSpawn>();
     }
 
     class ModelPosition
@@ -384,7 +386,7 @@ namespace DataExtractor.Vmap.Collision
                 return false;
             }
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(path, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 string vmapMagic = binaryReader.ReadCString();
                 if (vmapMagic != SharedConst.RAW_VMAP_MAGIC)
@@ -408,7 +410,7 @@ namespace DataExtractor.Vmap.Collision
                 }
 
                 return succeed;
-            }            
+            }
         }
 
         public uint RootWMOID;
@@ -422,14 +424,12 @@ namespace DataExtractor.Vmap.Collision
             mogpflags = reader.ReadUInt32();
             GroupWMOID = reader.ReadUInt32();
 
-            Vector3 vec1 = reader.ReadStruct<Vector3>();
-            Vector3 vec2 = reader.ReadStruct<Vector3>();
+            Vector3 vec1 = reader.Read<Vector3>();
+            Vector3 vec2 = reader.Read<Vector3>();
             bounds = new AxisAlignedBox(vec1, vec2);
 
             liquidflags = reader.ReadUInt32();
 
-            // will this ever be used? what is it good for anyway??
-            uint branches;
             string blockId = reader.ReadStringFromChars(4);
             if (blockId != "GRP ")
             {
@@ -437,10 +437,10 @@ namespace DataExtractor.Vmap.Collision
                 return false;
             }
             int blocksize = reader.ReadInt32();
-            branches = reader.ReadUInt32();
+            uint branches = reader.ReadUInt32();
             for (uint b = 0; b < branches; ++b)
             {   
-                // indexes for each branch (not used jet)
+                // indexes for each branch (not used yet)
                 uint indexes = reader.ReadUInt32();
             }
 
@@ -483,11 +483,11 @@ namespace DataExtractor.Vmap.Collision
                 for (uint i = 0; i < nvectors; ++i)
                     vertexArray.Add(new Vector3(vectorarray[3 * i], vectorarray[3 * i + 1], vectorarray[3 * i + 2]));
             }
+
             // ----- liquid
             liquid = null;
-            if (Convert.ToBoolean(liquidflags & 1))
+            if (Convert.ToBoolean(liquidflags & 3))
             {
-                WMOLiquidHeader hlq;
                 blockId = reader.ReadStringFromChars(4);
                 if (blockId != "LIQU")
                 {
@@ -495,18 +495,26 @@ namespace DataExtractor.Vmap.Collision
                     return false;
                 }
                 blocksize = reader.ReadInt32();
-                hlq = reader.ReadStruct<WMOLiquidHeader>();
-                liquid = new WmoLiquid((uint)hlq.xtiles, (uint)hlq.ytiles, new Vector3(hlq.pos_x, hlq.pos_y, hlq.pos_z), (uint)hlq.type);
+                uint liquidType = reader.ReadUInt32();
+                if (Convert.ToBoolean(liquidflags & 1))
+                {
+                    WMOLiquidHeader hlq = reader.Read<WMOLiquidHeader>();
+                    liquid = new WmoLiquid((uint)hlq.xtiles, (uint)hlq.ytiles, new Vector3(hlq.pos_x, hlq.pos_y, hlq.pos_z), liquidType);
+                    int size = hlq.xverts * hlq.yverts;
+                    liquid.iHeight = new float[size];
+                    for (var i = 0; i < size; ++i)
+                        liquid.iHeight[i] = reader.ReadSingle();
 
-                int size = hlq.xverts * hlq.yverts;
-                liquid.iHeight = new float[size];
-                for (var i = 0; i < size; ++i)
-                    liquid.iHeight[i] = reader.ReadSingle();
-
-                size = hlq.xtiles * hlq.ytiles;
-                liquid.iFlags = new byte[size];
-                for (var i = 0; i < size; ++i)
-                    liquid.iFlags[i] = reader.ReadByte();
+                    size = hlq.xtiles * hlq.ytiles;
+                    liquid.iFlags = new byte[size];
+                    for (var i = 0; i < size; ++i)
+                        liquid.iFlags[i] = reader.ReadByte();
+                }
+                else
+                {
+                    liquid = new WmoLiquid(0, 0, Vector3.Zero, liquidType);
+                    liquid.iHeight[0] = bounds.Hi.Z;
+                }
             }
 
             return true;
@@ -522,15 +530,15 @@ namespace DataExtractor.Vmap.Collision
         public WmoLiquid liquid;
     }
 
-    struct WMOLiquidHeader
+    struct TileSpawn
     {
-        public int xverts { get; set; }
-        public int yverts { get; set; }
-        public int xtiles { get; set; }
-        public int ytiles { get; set; }
-        public float pos_x { get; set; }
-        public float pos_y { get; set; }
-        public float pos_z { get; set; }
-        public short type { get; set; }
+        public TileSpawn(uint id, uint flags)
+        {
+            Id = id;
+            Flags = flags;
+        }
+
+        public uint Id { get; set; }
+        public uint Flags { get; set; }
     }
 }

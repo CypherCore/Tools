@@ -284,8 +284,6 @@ namespace DataExtractor
 
         static void ExtractVMaps()
         {
-            Console.WriteLine("Extracting Vmap files...");
-
             CreateDirectory(wmoDirectory);
             File.Delete(wmoDirectory + "dir_bin");
 

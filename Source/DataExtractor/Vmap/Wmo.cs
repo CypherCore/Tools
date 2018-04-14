@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.IO;
 using Framework.GameMath;
 using Framework.Constants;
+using System.Runtime.InteropServices;
 
 namespace DataExtractor.Vmap
 {
@@ -90,14 +91,96 @@ namespace DataExtractor.Vmap
 
         public bool ConvertToVMAPRootWmo(BinaryWriter writer)
         {
-            //printf("Convert RootWmo...\n");
-
             writer.WriteCString(SharedConst.RAW_VMAP_MAGIC);
             writer.Write(0); // will be filled later
             writer.Write(nGroups);
             writer.Write(RootWMOID);
             return true;
         }
+
+        public static void Extract(MODF mapObjDef, string WmoInstName, uint mapID, uint tileX, uint tileY, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
+        {
+            // destructible wmo, do not dump. we can handle the vmap for these
+            // in dynamic tree (gameobject vmaps)
+            if ((mapObjDef.Flags & 0x01) != 0)
+                return;
+
+            if (!File.Exists(Program.wmoDirectory + WmoInstName))
+            {
+                Console.WriteLine($"WMOInstance.WMOInstance: couldn't open {WmoInstName}");
+                return;
+            }
+
+            //-----------add_in _dir_file----------------
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + WmoInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            {
+                binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
+                int nVertices = binaryReader.ReadInt32();
+                if (nVertices == 0)
+                    return;
+
+                Vector3 position = mapObjDef.Position;
+
+                float x, z;
+                x = position.X;
+                z = position.Z;
+                if (x == 0 && z == 0)
+                {
+                    position.X = 533.33333f * 32;
+                    position.Z = 533.33333f * 32;
+                }
+
+                position = fixCoords(position);
+                AxisAlignedBox bounds = new AxisAlignedBox(fixCoords(mapObjDef.Bounds.Lo), fixCoords(mapObjDef.Bounds.Hi));
+
+                float scale = 1.0f;
+                if (Convert.ToBoolean(mapObjDef.Flags & 0x4))
+                    scale = mapObjDef.Scale / 1024.0f;
+                uint flags = ModelFlags.HasBound;
+                if (tileX == 65 && tileY == 65)
+                    flags |= ModelFlags.WorldSpawn;
+                if (mapID != originalMapId)
+                    flags |= ModelFlags.ParentSpawn;
+
+                //write mapID, tileX, tileY, Flags, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+                writer.Write(mapID);
+                writer.Write(tileX);
+                writer.Write(tileY);
+                writer.Write(flags);
+                writer.Write(mapObjDef.NameSet);
+                writer.Write(mapObjDef.UniqueId);
+                writer.WriteVector3(position);
+                writer.WriteVector3(mapObjDef.Rotation);
+                writer.Write(scale);
+                writer.WriteVector3(bounds.Lo);
+                writer.WriteVector3(bounds.Hi);
+                writer.Write(WmoInstName.Length);
+                writer.WriteString(WmoInstName);
+
+                if (dirfileCache != null)
+                {
+                    ADTOutputCache cacheModelData = new ADTOutputCache();
+                    cacheModelData.Flags = flags & ~ModelFlags.ParentSpawn;
+
+                    MemoryStream stream = new MemoryStream();
+                    BinaryWriter cacheData = new BinaryWriter(stream);
+                    cacheData.Write(mapObjDef.NameSet);
+                    cacheData.Write(mapObjDef.UniqueId);
+                    cacheData.WriteVector3(position);
+                    cacheData.WriteVector3(mapObjDef.Rotation);
+                    cacheData.Write(scale);
+                    cacheData.WriteVector3(bounds.Lo);
+                    cacheData.WriteVector3(bounds.Hi);
+                    cacheData.Write(WmoInstName.Length);
+                    cacheData.WriteString(WmoInstName);
+
+                    cacheModelData.Data = stream.ToArray();
+                    dirfileCache.Add(cacheModelData);
+                }
+            }
+        }
+
+        static Vector3 fixCoords(Vector3 v) { return new Vector3(v.Z, v.X, v.Y); }
 
         uint color;
         uint nTextures;
@@ -118,7 +201,7 @@ namespace DataExtractor.Vmap
 
     class WMOGroup
     {
-        public bool open(uint fileId)
+        public bool open(uint fileId, WMORoot rootWmo)
         {
             MemoryStream stream = Program.cascHandler.ReadFile((int)fileId);
             if (stream == null)
@@ -138,8 +221,6 @@ namespace DataExtractor.Vmap
                         size = 68;
 
                     long nextpos = reader.BaseStream.Position + size;
-                    LiquEx_size = 0;
-                    liquflags = 0;
 
                     if (fourcc == "MOGP")//header
                     {
@@ -159,9 +240,19 @@ namespace DataExtractor.Vmap
                         nBatchB = reader.ReadUInt16();
                         nBatchC = reader.ReadUInt32();
                         fogIdx = reader.ReadUInt32();
-                        liquidType = reader.ReadUInt32();
+                        groupLiquid = reader.ReadUInt32();
                         groupWMOID = reader.ReadUInt32();
 
+                        // according to WoW.Dev Wiki:
+                        if (Convert.ToBoolean(rootWmo.flags & 4))
+                            groupLiquid = GetLiquidTypeId(groupLiquid);
+                        else if (groupLiquid == 15)
+                            groupLiquid = 0;
+                        else
+                            groupLiquid = GetLiquidTypeId(groupLiquid + 1);
+
+                        if (groupLiquid != 0)
+                            liquflags |= 2;
                     }
                     else if (fourcc == "MOPY")
                     {
@@ -200,14 +291,27 @@ namespace DataExtractor.Vmap
                     else if (fourcc == "MLIQ")
                     {
                         liquflags |= 1;
-                        hlq = reader.ReadStruct<WMOLiquidHeader>(30);
+                        hlq = reader.Read<WMOLiquidHeader>();
                         LiquEx_size = 8 * hlq.xverts * hlq.yverts;
                         LiquEx = new WMOLiquidVert[hlq.xverts * hlq.yverts];
                         for (var i = 0; i < hlq.xverts * hlq.yverts; ++i)
-                            LiquEx[i] = reader.ReadStruct<WMOLiquidVert>();
+                            LiquEx[i] = reader.Read<WMOLiquidVert>();
 
                         int nLiquBytes = hlq.xtiles * hlq.ytiles;
                         LiquBytes = reader.ReadBytes(nLiquBytes);
+
+                        // Determine legacy liquid type
+                        if (groupLiquid == 0)
+                        {
+                            for (int i = 0; i < hlq.xtiles * hlq.ytiles; ++i)
+                            {
+                                if ((LiquBytes[i] & 0xF) != 15)
+                                {
+                                    groupLiquid = GetLiquidTypeId((uint)(LiquBytes[i] & 0xF) + 1);
+                                    break;
+                                }
+                            }
+                        }
 
                         /* std::ofstream llog("Buildings/liquid.log", ios_base::out | ios_base::app);
                         llog << filename;
@@ -223,7 +327,7 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        public int ConvertToVMAPGroupWmo(BinaryWriter writer, WMORoot rootWMO, bool preciseVectorData)
+        public int ConvertToVMAPGroupWmo(BinaryWriter writer, bool preciseVectorData)
         {
             writer.Write(mogpFlags);
             writer.Write(groupWMOID);
@@ -340,9 +444,8 @@ namespace DataExtractor.Vmap
                     writer.Write(MoviEx[i]);
 
                 // write vertices
-                int check = 3 * nColVertices;
                 writer.Write(0x54524556);
-                writer.Write( nColVertices * 3 * 4 + 4);
+                writer.Write(nColVertices * 3 * 4 + 4);
                 writer.Write(nColVertices);
                 for (uint i = 0; i < nVertices; ++i)
                 {
@@ -351,7 +454,6 @@ namespace DataExtractor.Vmap
                         writer.Write(MOVT[3 * i]);
                         writer.Write(MOVT[3 * i + 1]);
                         writer.Write(MOVT[3 * i + 2]);
-                        check -= 4;
                     }
                 }
 
@@ -359,76 +461,52 @@ namespace DataExtractor.Vmap
             }
 
             //------LIQU------------------------
-            if (LiquEx_size != 0)
+            if (Convert.ToBoolean(liquflags & 3))
             {
+                int LIQU_totalSize = 4;
+                if (Convert.ToBoolean(liquflags & 1))
+                {
+                    LIQU_totalSize += 30;
+                    LIQU_totalSize += LiquEx_size / 8 * sizeof(float);
+                    LIQU_totalSize += hlq.xtiles * hlq.ytiles;
+                }
+
                 writer.Write(0x5551494C);
-                writer.Write((32 + LiquEx_size) + hlq.xtiles * hlq.ytiles);
-
-                // according to WoW.Dev Wiki:
-                uint liquidEntry;
-                if (Convert.ToBoolean(rootWMO.flags & 4))
-                    liquidEntry = liquidType;
-                else if (liquidType == 15)
-                    liquidEntry = 0;
-                else
-                    liquidEntry = liquidType + 1;
-
-                if (liquidEntry == 0)
+                writer.Write(LIQU_totalSize);
+                writer.Write(groupLiquid);
+                if (Convert.ToBoolean(liquflags & 1))
                 {
-                    int v1; // edx@1
-                    int v2; // eax@1
-
-                    v1 = hlq.xtiles * hlq.ytiles;
-                    v2 = 0;
-                    if (v1 > 0)
-                    {
-                        while ((LiquBytes[v2] & 0xF) == 15)
-                        {
-                            ++v2;
-                            if (v2 >= v1)
-                                break;
-                        }
-
-                        if (v2 < v1 && (LiquBytes[v2] & 0xF) != 15)
-                            liquidEntry = (LiquBytes[v2] & 0xFu) + 1;
-                    }
-                }
-
-                if (liquidEntry != 0 && liquidEntry < 21)
-                {
-                    switch ((liquidEntry - 1) & 3)
-                    {
-                        case 0:
-                            liquidEntry = ((mogpFlags & 0x80000) != 0) ? 1 : 0 + 13u;
-                            break;
-                        case 1:
-                            liquidEntry = 14;
-                            break;
-                        case 2:
-                            liquidEntry = 19;
-                            break;
-                        case 3:
-                            liquidEntry = 20;
-                            break;
-                    }
-                }
-
-                hlq.type = (short)liquidEntry;
-
-                /* std::ofstream llog("Buildings/liquid.log", ios_base::out | ios_base::app);
-                llog << filename;
-                llog << ":\nliquidEntry: " << liquidEntry << " type: " << hlq->type << " (root:" << rootWMO->flags << " group:" << flags << ")\n";
-                llog.close(); */
-
-                writer.WriteStruct(hlq);
-                // only need height values, the other values are unknown anyway
-                for (uint i = 0; i < LiquEx_size / 8; ++i)
-                    writer.Write(LiquEx[i].height);
-                // todo: compress to bit field
-                writer.Write(LiquBytes, 0, hlq.xtiles * hlq.ytiles);
+                    writer.WriteStruct(hlq);
+                    // only need height values, the other values are unknown anyway
+                    for (uint i = 0; i < LiquEx_size / 8; ++i)
+                        writer.Write(LiquEx[i].height);
+                    // todo: compress to bit field
+                    writer.Write(LiquBytes, 0, hlq.xtiles * hlq.ytiles);
+                }                  
             }
 
             return nColTriangles;
+        }
+
+        uint GetLiquidTypeId(uint liquidTypeId)
+        {
+            if (liquidTypeId < 21 && liquidTypeId != 0)
+            {
+                switch (((liquidTypeId - 1) & 3))
+                {
+                    case 0:
+                        return (uint)((((mogpFlags & 0x80000) != 0) ? 1 : 0) + 13);
+                    case 1:
+                        return 14;
+                    case 2:
+                        return 19;
+                    case 3:
+                        return 20;
+                    default:
+                        break;
+                }
+            }
+            return liquidTypeId;
         }
 
         // MOGP
@@ -452,7 +530,7 @@ namespace DataExtractor.Vmap
         ushort nBatchB;
         uint nBatchC;
         uint fogIdx;
-        uint liquidType;
+        uint groupLiquid;
         uint groupWMOID;
 
         int mopy_size;
@@ -462,18 +540,6 @@ namespace DataExtractor.Vmap
         int nTriangles; // number when loaded
         uint liquflags;
 
-        struct WMOLiquidHeader
-        {
-            public int xverts { get; set; }
-            public int yverts { get; set; }
-            public int xtiles { get; set; }
-            public int ytiles { get; set; }
-            public float pos_x { get; set; }
-            public float pos_y { get; set; }
-            public float pos_z { get; set; }
-            public short type { get; set; }
-        }
-
         struct WMOLiquidVert
         {
             public ushort unk1 { get; set; }
@@ -482,80 +548,16 @@ namespace DataExtractor.Vmap
         }
     }
 
-    class WMOInstance
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct WMOLiquidHeader
     {
-        public WMOInstance(BinaryReader reader, string WmoInstName, uint mapID, uint tileX, uint tileY, BinaryWriter writer)
-        {
-            id = reader.ReadUInt32();
-
-            float[] ff = new float[3];
-            pos = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-            rot = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-            pos2 = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); // bounding box corners
-            pos3 = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());// bounding box corners
-
-            ushort fflags = reader.ReadUInt16();
-            ushort doodadSet = reader.ReadUInt16();
-            ushort adtId = reader.ReadUInt16();
-            ushort trash = reader.ReadUInt16();
-
-            // destructible wmo, do not dump. we can handle the vmap for these
-            // in dynamic tree (gameobject vmaps)
-            if ((fflags & 0x01) != 0)
-                return;
-
-            if (!File.Exists(Program.wmoDirectory + WmoInstName))
-            {
-                Console.WriteLine($"WMOInstance.WMOInstance: couldn't open {WmoInstName}");
-                return;
-            }
-
-            //-----------add_in _dir_file----------------
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + WmoInstName, FileMode.Open, FileAccess.Read)))
-            {
-                binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
-                int nVertices = binaryReader.ReadInt32();
-                if (nVertices == 0)
-                    return;
-
-                float x = pos.X;
-                float z = pos.Z;
-                if (x == 0 && z == 0)
-                {
-                    pos.X = 533.33333f * 32;
-                    pos.Z = 533.33333f * 32;
-                }
-                pos = fixCoords(pos);
-                pos2 = fixCoords(pos2);
-                pos3 = fixCoords(pos3);
-
-                float scale = 1.0f;
-                uint flags = 1u << 2; //hasbound
-                if (tileX == 65 && tileY == 65)
-                    flags |= 1 << 1; //worldspawn
-                                     //write mapID, tileX, tileY, Flags, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
-                writer.Write(mapID);
-                writer.Write(tileX);
-                writer.Write(tileY);
-                writer.Write(flags);
-                writer.Write(adtId);
-                writer.Write(id);
-                writer.WriteVector3(pos);
-                writer.WriteVector3(rot);
-                writer.Write(scale);
-                writer.WriteVector3(pos2);
-                writer.WriteVector3(pos3);
-                writer.Write(WmoInstName.Length);
-                writer.WriteString(WmoInstName);
-            }
-        }
-
-        Vector3 fixCoords(Vector3 v) { return new Vector3(v.Z, v.X, v.Y); }
-
-        Vector3 pos;
-        Vector3 pos2;
-        Vector3 pos3;
-        Vector3 rot;
-        uint id;
+        public int xverts { get; set; }
+        public int yverts { get; set; }
+        public int xtiles { get; set; }
+        public int ytiles { get; set; }
+        public float pos_x { get; set; }
+        public float pos_y { get; set; }
+        public float pos_z { get; set; }
+        public short material { get; set; }
     }
 }

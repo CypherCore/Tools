@@ -233,8 +233,16 @@ namespace Framework.GameMath
 
         public void merge(AxisAlignedBox a)
         {
-            Lo = Lo.Min(a.Lo);
-            Hi = Hi.Max(a.Hi);
+            if (isEmpty())
+            {
+                Lo = a.Lo;
+                Hi = a.Hi;
+            }
+            else if (!a.isEmpty())
+            {
+                Lo = Lo.Min(a.Lo);
+                Hi = Hi.Max(a.Hi);
+            }
         }
 
         public void merge(Vector3 a)

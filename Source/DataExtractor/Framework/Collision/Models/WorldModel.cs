@@ -47,8 +47,16 @@ namespace Framework.Collision
             iCorner = corner;
             iType = type;
 
-            iHeight = new float[(width + 1) * (height + 1)];
-            iFlags = new byte[width * height];
+            if (width != 0 && height != 0)
+            {
+                iHeight = new float[(width + 1) * (height + 1)];
+                iFlags = new byte[width * height];
+            }
+            else
+            {
+                iHeight = new float[1];
+                iFlags = null;
+            }
         }
         public WmoLiquid(WmoLiquid other)
         {
@@ -77,9 +85,8 @@ namespace Framework.Collision
 
         public uint GetFileSize()
         {
-            return 2 * 4 + (4 * 3) +
-                (iTilesX + 1) * (iTilesY + 1) * sizeof(float) +
-                iTilesX * iTilesY;
+            return 2 * sizeof(uint) + (sizeof(float) * 3) +
+                sizeof(uint) + (iFlags != null ? ((iTilesX + 1) * (iTilesY + 1) * sizeof(float) + iTilesX * iTilesY) : sizeof(float));
         }
 
         public bool writeToFile(BinaryWriter writer)
@@ -92,13 +99,18 @@ namespace Framework.Collision
             writer.Write(iCorner.Z);
             writer.Write(iType);
 
-            uint size = (iTilesX + 1) * (iTilesY + 1);
-            for (var i = 0; i < size; i++)
-                writer.Write(iHeight[i]);
+            if (iTilesX != 0 && iTilesY != 0)
+            {
+                uint size = (iTilesX + 1) * (iTilesY + 1);
+                for (var i = 0; i < size; i++)
+                    writer.Write(iHeight[i]);
 
-            size = iTilesX * iTilesY;
-            for (var i = 0; i < size; i++)
-                writer.Write(iFlags[0]);
+                size = iTilesX * iTilesY;
+                for (var i = 0; i < size; i++)
+                    writer.Write(iFlags[i]);
+            }
+            else
+                writer.Write(iHeight[0]);
 
             return true;
         }
@@ -109,18 +121,26 @@ namespace Framework.Collision
 
             liquid.iTilesX = reader.ReadUInt32();
             liquid.iTilesY = reader.ReadUInt32();
-            liquid.iCorner = reader.ReadStruct<Vector3>();
+            liquid.iCorner = reader.Read<Vector3>();
             liquid.iType = reader.ReadUInt32();
 
-            uint size = (liquid.iTilesX + 1) * (liquid.iTilesY + 1);
-            liquid.iHeight = new float[size];
-            for (var i = 0; i < size; i++)
-                liquid.iHeight[i] = reader.ReadSingle();
+            if (liquid.iTilesX != 0 && liquid.iTilesY != 0)
+            {
+                uint size = (liquid.iTilesX + 1) * (liquid.iTilesY + 1);
+                liquid.iHeight = new float[size];
+                for (var i = 0; i < size; i++)
+                    liquid.iHeight[i] = reader.ReadSingle();
 
-            size = liquid.iTilesX * liquid.iTilesY;
-            liquid.iFlags = new byte[size];
-            for (var i = 0; i < size; i++)
-                liquid.iFlags[i] = reader.ReadByte();
+                size = liquid.iTilesX * liquid.iTilesY;
+                liquid.iFlags = new byte[size];
+                for (var i = 0; i < size; i++)
+                    liquid.iFlags[i] = reader.ReadByte();
+            }
+            else
+            {
+                liquid.iHeight = new float[1];
+                liquid.iHeight[0] = reader.ReadSingle();
+            }
 
             return liquid;
         }
@@ -180,7 +200,6 @@ namespace Framework.Collision
             // write vertices
             writer.WriteString("VERT");
             count = vertices.Count;
-            //chunkSize = sizeof(uint32) + sizeof(Vector3) * count;
             writer.Write(4 + 12 * count);
             writer.Write(count);
             if (count == 0) // models without (collision) geometry end here, unsure if they are useful
@@ -225,7 +244,7 @@ namespace Framework.Collision
             vertices.Clear();
             iLiquid = null;
 
-            iBound = reader.ReadStruct<AxisAlignedBox>();
+            iBound = reader.Read<AxisAlignedBox>();
             iMogpFlags = reader.ReadUInt32();
             iGroupWMOID = reader.ReadUInt32();
 
@@ -239,7 +258,7 @@ namespace Framework.Collision
                 return false;
 
             for (var i = 0; i < count; ++i)
-                vertices.Add(reader.ReadStruct<Vector3>());
+                vertices.Add(reader.Read<Vector3>());
 
             // read triangle mesh
             if (reader.ReadStringFromChars(4) != "TRIM")
@@ -249,7 +268,7 @@ namespace Framework.Collision
             count = reader.ReadUInt32();
 
             for (var i = 0; i < count; ++i)
-                triangles.Add(reader.ReadStruct<MeshTriangle>());
+                triangles.Add(reader.Read<MeshTriangle>());
 
             // read mesh BIH
             if (reader.ReadStringFromChars(4) != "MBIH")
@@ -316,8 +335,6 @@ namespace Framework.Collision
                 if (groupModels.Count != 0)
                 {
                     writer.WriteString("GMOD");
-                    //chunkSize = sizeof(uint32)+ sizeof(GroupModel)*count;
-                    //if (result && fwrite(&chunkSize, sizeof(uint32), 1, wf) != 1) result = false;
                     writer.Write(groupModels.Count);
                     for (int i = 0; i < groupModels.Count; ++i)
                         groupModels[i].writeToFile(writer);
@@ -334,7 +351,7 @@ namespace Framework.Collision
             if (!File.Exists(filename))
                 return false;
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 uint chunkSize = 0;
                 uint count = 0;
@@ -363,8 +380,6 @@ namespace Framework.Collision
                     return false;
 
                 groupTree.readFromFile(binaryReader);
-
-
                 return true;
             }
         }

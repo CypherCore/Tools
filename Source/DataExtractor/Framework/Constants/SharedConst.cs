@@ -22,8 +22,8 @@ namespace Framework.Constants
 {
     class SharedConst
     {
-        public const string VMAP_MAGIC = "VMAP_4.5";
-        public const string RAW_VMAP_MAGIC = "VMAP045";
+        public const string VMAP_MAGIC = "VMAP_4.7";
+        public const string RAW_VMAP_MAGIC = "VMAP047";
 
         public const float LIQUID_TILE_SIZE = 533.333f / 128.0f;
 
@@ -55,7 +55,7 @@ namespace Framework.Constants
         public const float GRID_PART_SIZE = GRID_SIZE / V8_SIZE;
 
         // see contrib/extractor/system.cpp, CONF_use_minHeight
-        public const float INVALID_MAP_LIQ_HEIGHT = -500.0f;
+        public const float INVALID_MAP_LIQ_HEIGHT = -2000.0f;
         public const float INVALID_MAP_LIQ_HEIGHT_MAX = 5000.0f;
     }
 
@@ -76,8 +76,7 @@ namespace Framework.Constants
         Magma = 0x04,
         Slime = 0x08,
 
-        DarkWater = 0x10,
-        WmoWater = 0x20
+        DarkWater = 0x10
     }
 
     public enum MapHeightFlags
@@ -105,6 +104,7 @@ namespace Framework.Constants
         public const uint M2 = 1;
         public const uint WorldSpawn = 1 << 1;
         public const uint HasBound = 1 << 2;
+        public const uint ParentSpawn = 1 << 3;
     }
 
     public enum Spot

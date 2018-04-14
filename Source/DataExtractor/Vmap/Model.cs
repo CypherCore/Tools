@@ -55,10 +55,10 @@ namespace DataExtractor.Vmap
                     reader.BaseStream.Seek(m2start + header.ofsBoundingVertices, SeekOrigin.Begin);
                     vertices = new Vector3[header.nBoundingVertices];
                     for (var i = 0; i < header.nBoundingVertices; ++i)
-                        vertices[i] = reader.ReadStruct<Vector3>();
+                        vertices[i] = reader.Read<Vector3>();
 
-                    //for (uint i = 0; i < header.nBoundingVertices; i++)
-                    //vertices[i] = fixCoordSystem(vertices[i]);
+                    for (uint i = 0; i < header.nBoundingVertices; i++)
+                        vertices[i] = fixCoordSystem(vertices[i]);
 
                     reader.BaseStream.Seek(m2start + header.ofsBoundingTriangles, SeekOrigin.Begin);
                     indices = new ushort[header.nBoundingTriangles];
@@ -129,12 +129,12 @@ namespace DataExtractor.Vmap
                 binaryWriter.Write(nVertices);
                 if (nVertices > 0)
                 {
-                    /*for (uint vpos = 0; vpos < nVertices; ++vpos)
+                    for (uint vpos = 0; vpos < nVertices; ++vpos)
                     {
                         float tmp = vertices[vpos].Y;
                         vertices[vpos].Y = -vertices[vpos].Z;
                         vertices[vpos].Z = tmp;
-                    }*/
+                    }
 
                     for (var i = 0; i < nVertices; ++i)
                         binaryWriter.WriteVector3(vertices[i]);
@@ -144,83 +144,75 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        ModelHeader header;
-        Vector3[] vertices;
-        ushort[] indices;
-    }
-
-    public class ModelInstance
-    {
-        public ModelInstance(BinaryReader reader, string ModelInstName, uint mapID, uint tileX, uint tileY, BinaryWriter writer)
+        public static void Extract(MDDF doodadDef, string ModelInstName, uint mapID, uint tileX, uint tileY, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
         {
-            id = reader.ReadUInt32();
-
-            pos.Y = reader.ReadSingle();
-            pos.Z = reader.ReadSingle();
-            pos.X = reader.ReadSingle();
-
-            rot = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-            scale = reader.ReadUInt16();
-            flags = reader.ReadUInt16();
             // scale factor - divide by 1024. blizzard devs must be on crack, why not just use a float?
-            sc = scale / 1024.0f;
+            float sc = doodadDef.Scale / 1024.0f;
 
             if (!File.Exists(Program.wmoDirectory + ModelInstName))
                 return;
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
                 int nVertices = binaryReader.ReadInt32();
                 if (nVertices == 0)
                     return;
-
-
-                if (nVertices == 0)
-                    return;
             }
 
-            ushort adtId = 0;// not used for models
-            uint tcflags = 1;
-            if (tileX == 65 && tileY == 65)
-                tcflags |= 1 << 1;
+            Vector3 position = fixCoords(doodadDef.Position);
 
-            //write mapID, tileX, tileY, Flags, ID, Pos, Rot, Scale, name
+            ushort nameSet = 0;// not used for models
+            uint tcflags = ModelFlags.M2;
+            if (tileX == 65 && tileY == 65)
+                tcflags |= ModelFlags.WorldSpawn;
+            if (mapID != originalMapId)
+                tcflags |= ModelFlags.ParentSpawn;
+
+
+            //write mapID, tileX, tileY, Flags, NameSet, UniqueId, Pos, Rot, Scale, name
             writer.Write(mapID);
             writer.Write(tileX);
             writer.Write(tileY);
             writer.Write(tcflags);
-            writer.Write(adtId);
-            writer.Write(id);
-            writer.WriteVector3(pos);
-            writer.WriteVector3(rot);
+            writer.Write(nameSet);
+            writer.Write(doodadDef.UniqueId);
+            writer.WriteVector3(position);
+            writer.WriteVector3(doodadDef.Rotation);
             writer.Write(sc);
             writer.Write(ModelInstName.Length);
             writer.WriteString(ModelInstName);
 
-            /* int realx1 = (int) ((float) pos.x / 533.333333f);
-            int realy1 = (int) ((float) pos.z / 533.333333f);
-            int realx2 = (int) ((float) pos.x / 533.333333f);
-            int realy2 = (int) ((float) pos.z / 533.333333f);
+            if (dirfileCache != null)
+            {
+                ADTOutputCache cacheModelData = new ADTOutputCache();
+                cacheModelData.Flags = tcflags & ~ModelFlags.ParentSpawn;
 
-            fprintf(pDirfile,"%s/%s %f,%f,%f_%f,%f,%f %f %d %d %d,%d %d\n",
-                MapName,
-                ModelInstName,
-                (float) pos.x, (float) pos.y, (float) pos.z,
-                (float) rot.x, (float) rot.y, (float) rot.z,
-                sc,
-                nVertices,
-                realx1, realy1,
-                realx2, realy2
-                ); */
+                MemoryStream stream = new MemoryStream();
+                BinaryWriter cacheData = new BinaryWriter(stream);
+                cacheData.Write(nameSet);
+                cacheData.Write(doodadDef.UniqueId);
+                cacheData.WriteVector3(position);
+                cacheData.WriteVector3(doodadDef.Rotation);
+                cacheData.Write(sc);
+                cacheData.Write(ModelInstName.Length);
+                cacheData.WriteString(ModelInstName);
+
+                cacheModelData.Data = stream.ToArray();
+                dirfileCache.Add(cacheModelData);
+            }
         }
 
-        public uint id;
-        public Vector3 pos;
-        public Vector3 rot;
-        public ushort scale;
-        public ushort flags;
-        public float sc;
+        Vector3 fixCoordSystem(Vector3 v)
+        {
+            return new Vector3(v.X, v.Z, -v.Y);
+        }
+
+        static Vector3 fixCoords(Vector3 v) { return new Vector3(v.Z, v.X, v.Y); }
+
+        ModelHeader header;
+        Vector3[] vertices;
+        ushort[] indices;
     }
 
     [StructLayout(LayoutKind.Sequential)]

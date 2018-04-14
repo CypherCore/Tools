@@ -20,6 +20,9 @@ using System.Text;
 using Framework.ClientReader;
 using System.IO;
 using DataExtractor.Vmap.Collision;
+using System.Collections.Generic;
+using System.Linq;
+using Framework.Constants;
 
 namespace DataExtractor.Vmap
 {
@@ -29,23 +32,12 @@ namespace DataExtractor.Vmap
         {
             Console.WriteLine("Extracting GameObject models...");
 
-            var stream = Program.cascHandler.ReadFile("DBFilesClient\\GameObjectDisplayInfo.db2");
-            if (stream == null)
-            {
-                Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
-                return;
-            }
-            var GameObjectDisplayInfoStorage = DBReader.Read<GameObjectDisplayInfoRecord>(stream);
-            if (GameObjectDisplayInfoStorage == null)
-            {
-                Console.WriteLine("Fatal error: Invalid GameObjectDisplayInfo.db2 file format!\n");
-                return;
-            }
-
             string modelListPath = Program.wmoDirectory + "temp_gameobject_models";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(modelListPath, FileMode.Create, FileAccess.Write)))
             {
-                foreach (var record in GameObjectDisplayInfoStorage.Values)
+                binaryWriter.WriteCString(SharedConst.RAW_VMAP_MAGIC);
+
+                foreach (var record in CliDB.GameObjectDisplayInfoStorage.Values)
                 {
                     uint fileId = record.FileDataID;
                     if (fileId == 0)
@@ -56,17 +48,24 @@ namespace DataExtractor.Vmap
                     if (!GetHeaderMagic(fileId, out header))
                         continue;
 
+                    bool isWmo = false;
                     string fileName = $"File{fileId:X8}.xxx";
                     if (header == "REVM")
+                    {
+                        isWmo = true;
                         result = ExtractSingleWmo(fileId);
+                    }
                     else if (header == "MD20" || header == "MD21")
                         result = ExtractSingleModel(fileId);
-                    //else
-                    //ASSERT(false, "%s header: %d - %c%c%c%c", fileId, header, (header >> 24) & 0xFF, (header >> 16) & 0xFF, (header >> 8) & 0xFF, header & 0xFF);
+                    else
+                    {
+
+                    }
 
                     if (result)
                     {
                         binaryWriter.Write(record.Id);
+                        binaryWriter.Write(isWmo);
                         binaryWriter.Write(fileName.Length);
                         binaryWriter.WriteString(fileName);
                     }
@@ -78,32 +77,64 @@ namespace DataExtractor.Vmap
 
         public static void ParsMapFiles()
         {
-            var stream = Program.cascHandler.ReadFile("DBFilesClient\\Map.db2");
-            if (stream == null)
+            Dictionary<uint, Tuple<string, short>> map_ids = new Dictionary<uint, Tuple<string, short>>();
+            List<uint> maps_that_are_parents = new List<uint>();
+
+            foreach (var record in CliDB.MapStorage.Values)
             {
-                Console.WriteLine("Unable to open file DBFilesClient\\Map.db2 in the archive\n");
-                return;
+                map_ids[record.Id] = Tuple.Create(record.Directory, record.ParentMapID);
+                if (record.ParentMapID >= 0)
+                    maps_that_are_parents.Add((uint)record.ParentMapID);
             }
 
-            var mapStorage = DBReader.Read<MapRecord>(stream);
-            if (mapStorage == null)
+            Dictionary<uint, WDTFile> wdts = new Dictionary<uint, WDTFile>();
+            Func<uint, WDTFile> getWDT = mapId =>
             {
-                Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
-                return;
-            }
-
-            foreach (var record in mapStorage.Values)
-            {
-                WDTFile WDT = new WDTFile();
-                if (WDT.init($"World\\Maps\\{record.Directory}\\{record.Directory}.wdt", record.Id))
+                var wdtFile = wdts.LookupByKey(mapId);
+                if (wdtFile == null)
                 {
-                    Console.Write($"Processing Map {record.Id}\n");
+                    string fn = $"World\\Maps\\{map_ids[mapId].Item1}\\{map_ids[mapId].Item1}";
+                    bool v1 = maps_that_are_parents.Contains(mapId);
+                    bool v2 = map_ids[mapId].Item2 != -1;
+
+                    wdtFile = new WDTFile(fn, maps_that_are_parents.Contains(mapId));
+                    wdts.Add(mapId, wdtFile);
+                    if (!wdtFile.init(mapId))
+                    {
+                        wdts.Remove(mapId);
+                        return null;
+                    }
+                }
+
+                return wdtFile;
+            };
+
+            foreach (var pair in map_ids)
+            {
+                WDTFile WDT = getWDT(pair.Key);
+                if (WDT != null)
+                {
+                    WDTFile parentWDT = pair.Value.Item2 >= 0 ? getWDT((uint)pair.Value.Item2) : null;
+                    Console.Write($"Processing Map {pair.Key}\n");
                     for (uint x = 0; x < 64; ++x)
                     {
                         for (uint y = 0; y < 64; ++y)
                         {
-                            ADTFile ADT = new ADTFile();
-                            ADT.init($"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}_obj0.adt", record.Id, x, y);
+                            bool success = false;
+                            ADTFile ADT = WDT.GetMap(x, y);
+                            if (ADT != null)
+                            {
+                                success = ADT.init(pair.Key, x, y, pair.Key);
+                            }
+
+                            if (!success && parentWDT != null)
+                            {
+                                ADTFile parentADT = parentWDT.GetMap(x, y);
+                                if (parentADT != null)
+                                {
+                                    parentADT.init(pair.Key, x, y, (uint)pair.Value.Item2);
+                                }
+                            }
                         }
                         // draw progress bar
                         Console.Write($"Processing........................{(100 * (x + 1)) / 64}%\r");
@@ -133,18 +164,17 @@ namespace DataExtractor.Vmap
             {
                 froot.ConvertToVMAPRootWmo(binaryWriter);
                 int Wmo_nVertices = 0;
-                //printf("root has %d groups\n", froot->nGroups);
                 for (int i = 0; i < froot.groupFileDataIDs.Count; ++i)
                 {
                     WMOGroup fgroup = new WMOGroup();
-                    if (!fgroup.open(froot.groupFileDataIDs[i]))
+                    if (!fgroup.open(froot.groupFileDataIDs[i], froot))
                     {
                         Console.WriteLine($"Could not open all Group file for: {fileId.ToString()}");
                         file_ok = false;
                         break;
                     }
 
-                    Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(binaryWriter, froot, false);// preciseVectorData);
+                    Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(binaryWriter, false);
                 }
 
                 binaryWriter.Seek(8, SeekOrigin.Begin); // store the correct no of vertices
@@ -198,18 +228,17 @@ namespace DataExtractor.Vmap
             {
                 froot.ConvertToVMAPRootWmo(binaryWriter);
                 int Wmo_nVertices = 0;
-                //printf("root has %d groups\n", froot->nGroups);
                 for (int i = 0; i < froot.groupFileDataIDs.Count; ++i)
                 {
                     WMOGroup fgroup = new WMOGroup();
-                    if (!fgroup.open(froot.groupFileDataIDs[i]))
+                    if (!fgroup.open(froot.groupFileDataIDs[i], froot))
                     {
                         Console.WriteLine($"Could not open all Group file for: {plainName}");
                         file_ok = false;
                         break;
                     }
 
-                    Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(binaryWriter, froot, false);// preciseVectorData);
+                    Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(binaryWriter, false);
                 }
 
                 binaryWriter.Seek(8, SeekOrigin.Begin); // store the correct no of vertices

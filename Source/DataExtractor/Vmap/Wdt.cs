@@ -23,9 +23,20 @@ namespace DataExtractor.Vmap
 {
     class WDTFile
     {
-        public bool init(string fileName, uint mapID)
+        public WDTFile(string mapName, bool cache)
         {
-            MemoryStream stream = Program.cascHandler.ReadFile(fileName);
+            _mapName = mapName;
+            if (cache)
+            {
+                _adtCache = new ADTFile[64][];
+                for (var i = 0; i < 64; ++i)
+                    _adtCache[i] = new ADTFile[64];
+            }
+        }
+
+        public bool init(uint mapId)
+        {
+            MemoryStream stream = Program.cascHandler.ReadFile(_mapName + ".wdt");
             if (stream == null)
                 return false;
 
@@ -53,7 +64,7 @@ namespace DataExtractor.Vmap
                                 {
                                     string path = binaryReader.ReadCString();
 
-                                    gWmoInstansName.Add(path.GetPlainName());
+                                    _wmoNames.Add(path.GetPlainName());
                                     VmapFile.ExtractSingleWmo(path);
 
                                     size -= (uint)(path.Length + 1);
@@ -65,12 +76,20 @@ namespace DataExtractor.Vmap
                             // global wmo instance data
                             if (size != 0)
                             {
-                                gnWMO = (int)size / 64;
-
-                                for (int i = 0; i < gnWMO; ++i)
+                                uint mapObjectCount = size / 64; //sizeof(ADT::MODF);
+                                for (int i = 0; i < mapObjectCount; ++i)
                                 {
-                                    int id = binaryReader.ReadInt32();
-                                    WMOInstance inst = new WMOInstance(binaryReader, gWmoInstansName[id], mapID, 65, 65, binaryWriter);
+                                    MODF mapObjDef = binaryReader.Read<MODF>();
+                                    if (!Convert.ToBoolean(mapObjDef.Flags & 0x8))
+                                    {
+                                        WMORoot.Extract(mapObjDef, _wmoNames[(int)mapObjDef.Id], mapId, 65, 65, mapId, binaryWriter, null);
+                                    }
+                                    else
+                                    {
+                                        string fileName = $"FILE{mapObjDef.Id}:8X.xxx";
+                                        VmapFile.ExtractSingleModel(fileName);
+                                        WMORoot.Extract(mapObjDef, fileName, mapId, 65, 65, mapId, binaryWriter, null);
+                                    }
                                 }
                             }
                         }
@@ -83,7 +102,23 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        List<string> gWmoInstansName = new List<string>();
-        int gnWMO;
+        public ADTFile GetMap(uint x, uint y)
+        {
+            if (!(x >= 0 && y >= 0 && x < 64 && y < 64))
+                return null;
+
+            if (_adtCache != null && _adtCache[x][y] != null)
+                return _adtCache[x][y];
+
+            string name = $"{_mapName}_{x}_{y}_obj0.adt";
+            ADTFile adt = new ADTFile(name, _adtCache != null);
+            if (_adtCache != null)
+                _adtCache[x][y] = adt;
+            return adt;
+        }
+
+        string _mapName;
+        List<string> _wmoNames = new List<string>();
+        ADTFile[][] _adtCache;
     }
 }

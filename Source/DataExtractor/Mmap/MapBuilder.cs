@@ -34,11 +34,13 @@ namespace DataExtractor.Mmap
 
     class MapBuilder
     {
-        public MapBuilder()
+        public MapBuilder(VMapManager2 vm)
         {
+            _vmapManager = vm;
+
             m_maxWalkableAngle = 70.0f;
 
-            m_terrainBuilder = new TerrainBuilder();
+            m_terrainBuilder = new TerrainBuilder(vm);
             m_rcContext = new rcContext(false);
 
             discoverTiles();
@@ -271,7 +273,7 @@ namespace DataExtractor.Mmap
             MeshData meshData = new MeshData();
 
             // get heightmap data
-            m_terrainBuilder.loadMap(mapID, tileX, tileY, meshData);
+            m_terrainBuilder.loadMap(mapID, tileX, tileY, meshData, _vmapManager);
 
             // get model data
             m_terrainBuilder.loadVMap(mapID, tileY, tileX, meshData);
@@ -303,7 +305,12 @@ namespace DataExtractor.Mmap
 
         void buildNavMesh(uint mapID, out dtNavMesh navMesh)
         {
-            var tiles = getTileList(mapID);
+            // if map has a parent we use that to generate dtNavMeshParams - worldserver will load all missing tiles from that map
+            int navMeshParamsMapId = _vmapManager.getParentMapId(mapID);
+            if (navMeshParamsMapId == -1)
+                navMeshParamsMapId = (int)mapID;
+
+            SortedSet<uint> tiles = getTileList((uint)navMeshParamsMapId);
 
             // old code for non-statically assigned bitmask sizes:
             ///*** calculate number of bits needed to store tiles & polys ***/
@@ -606,7 +613,6 @@ namespace DataExtractor.Mmap
                     // loaded but those models don't span into this tile
 
                     // message is an annoyance
-                    //printf("%sNo vertices to build tile!              \n", tileString);
                     break;
                 }
                 if (createParams.polyCount == 0 || createParams.polys == null ||
@@ -815,6 +821,13 @@ namespace DataExtractor.Mmap
                 case 1639:
                 case 1649:
                 case 1650:
+                case 1711:
+                case 1751:
+                case 1752:
+                case 1856:
+                case 1857:
+                case 1902:
+                case 1903:
                     return true;
                 default:
                     return false;
@@ -827,9 +840,9 @@ namespace DataExtractor.Mmap
             if (!File.Exists(fileName))
                 return false;
 
-            using (BinaryReader reader = new BinaryReader(File.Open(fileName, FileMode.Open, FileAccess.Read)))
+            using (BinaryReader reader = new BinaryReader(File.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
-                MmapTileHeader header = reader.ReadStruct<MmapTileHeader>();
+                MmapTileHeader header = reader.Read<MmapTileHeader>();
                 if (header.mmapMagic != SharedConst.MMAP_MAGIC || header.dtVersion != DT_NAVMESH_VERSION)
                     return false;
 
@@ -857,8 +870,7 @@ namespace DataExtractor.Mmap
         BlockingCollection<uint> _queue = new BlockingCollection<uint>();
         volatile bool _cancelationToken;
 
-        //using (BinaryReader reader = new BinaryReader(File.Open("", FileMode.Open, FileAccess.Read)))
-        //using (BinaryWriter writer = new BinaryWriter(File.OpenWrite("")))
+        VMapManager2 _vmapManager;
     }
 
     struct MmapTileHeader
