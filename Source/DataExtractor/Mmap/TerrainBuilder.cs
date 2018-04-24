@@ -380,7 +380,7 @@ namespace DataExtractor.Mmap
                         // default is true, will change to false if needed
                         useTerrain = true;
                         useLiquid = true;
-                        NavTerrain navTerrain = 0;
+                        NavTerrainFlag navTerrain = 0;
 
                         // if there is no liquid, don't use liquid
                         if (meshData.liquidVerts.Count == 0 || ltriangles.Count == 0)
@@ -395,11 +395,9 @@ namespace DataExtractor.Mmap
                                 useLiquid = false;
                             }
                             else if((liquidType & (byte)(LiquidTypeMask.Water | LiquidTypeMask.Ocean)) != 0)
-                                liquidType = (byte)NavTerrain.Water;
-                            else if (Convert.ToBoolean(liquidType & (byte)LiquidTypeMask.Magma))
-                                liquidType = (byte)NavTerrain.Magma;
-                            else if (Convert.ToBoolean(liquidType & (byte)LiquidTypeMask.Slime))
-                                liquidType = (byte)NavTerrain.Slime;
+                                liquidType = (byte)NavArea.Water;
+                            else if (Convert.ToBoolean(liquidType & (byte)(LiquidTypeMask.Magma | LiquidTypeMask.Slime)))
+                                liquidType = (byte)NavArea.MagmaSlime;
                             else
                                 useLiquid = false;
                         }
@@ -682,22 +680,15 @@ namespace DataExtractor.Mmap
                             vertsY = tilesY + 1;
                             byte[] flags = liquid.iFlags;
                             float[] data = liquid.iHeight;
-                            NavTerrain type = NavTerrain.Empty;
+                            NavArea type = NavArea.Empty;
 
                             // convert liquid type to NavTerrain
-                            switch (liquid.iType & 3)
-                            {
-                                case 0:
-                                case 1:
-                                    type = NavTerrain.Water;
-                                    break;
-                                case 2:
-                                    type = NavTerrain.Magma;
-                                    break;
-                                case 3:
-                                    type = NavTerrain.Slime;
-                                    break;
-                            }
+                            var liquidTypeRecord = CliDB.LiquidTypes.LookupByKey(liquid.GetLiquidType());
+                            uint liquidFlags = (uint)(liquidTypeRecord != null ? liquidTypeRecord.SoundBank : 0);
+                            if ((liquidFlags & (uint)(LiquidTypeMask.Water | LiquidTypeMask.Ocean)) != 0)
+                                type = NavArea.Water;
+                            else if ((liquidFlags & (uint)(LiquidTypeMask.Magma | LiquidTypeMask.Slime)) != 0)
+                                type = NavArea.MagmaSlime;
 
                             // indexing is weird...
                             // after a lot of trial and error, this is what works:

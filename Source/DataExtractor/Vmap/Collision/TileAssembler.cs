@@ -182,6 +182,7 @@ namespace DataExtractor.Vmap.Collision
 
                     if (!current.UniqueEntries.ContainsKey(spawn.ID))
                         current.UniqueEntries.Add(spawn.ID, spawn);
+
                     current.TileEntries.Add(StaticMapTree.packTileID(tileX, tileY), new TileSpawn(spawn.ID, spawn.flags));
                 }
             }

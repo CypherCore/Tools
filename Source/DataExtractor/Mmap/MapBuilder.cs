@@ -160,55 +160,15 @@ namespace DataExtractor.Mmap
             minY = (uint)(32 - bmax[2] / SharedConst.GRID_SIZE);
         }
 
-        void WorkerThread()
+        public void buildAllMaps()
         {
-            while (true)
-            {
-                uint mapId = _queue.Take();
-
-                if (_cancelationToken)
-                    return;
-
-                buildMap(mapId);
-            }
-        }
-
-        public void buildAllMaps(uint threads)
-        {
-            Console.WriteLine($"Using {threads} threads to extract mmaps");
-
-            for (int i = 0; i < threads; ++i)
-            {
-                _workerThreads.Add(new Thread(WorkerThread));
-                _workerThreads[i].Start();
-            }
-
             m_tiles = m_tiles.OrderByDescending(a => a.m_tiles.Count).ToList();
-            foreach (var it in m_tiles)
+            System.Threading.Tasks.Parallel.ForEach(m_tiles, mapTile =>
             {
-                uint mapId = it.m_mapId;
+                uint mapId = mapTile.m_mapId;
                 if (!shouldSkipMap(mapId))
-                {
-                    if (threads > 0)
-                        _queue.Add(mapId);
-                    else
-                        buildMap(mapId);
-                }
-            }
-
-            while (_queue.Count != 0)
-            {
-                Thread.Sleep(1000);
-            }
-
-            _cancelationToken = true;
-
-            //_queue.Cancel();
-
-            foreach (var thread in _workerThreads)
-            {
-                thread.Join();
-            }
+                    buildMap(mapId);
+            });
         }
 
         void buildMap(uint mapID)
@@ -297,7 +257,7 @@ namespace DataExtractor.Mmap
             // get bounds of current tile
             getTileBounds(tileX, tileY, allVerts, allVerts.Length / 3, out float[] bmin, out float[] bmax);
 
-            m_terrainBuilder.loadOffMeshConnections(mapID, tileX, tileY, meshData, m_offMeshFilePath);
+            m_terrainBuilder.loadOffMeshConnections(mapID, tileX, tileY, meshData, null);
 
             // build navmesh tile
             buildMoveMapTile(mapID, tileX, tileY, meshData, bmin, bmax, navMesh);
@@ -400,11 +360,11 @@ namespace DataExtractor.Mmap
             // these are WORLD UNIT based metrics
             // this are basic unit dimentions
             // value have to divide GRID_SIZE(533.3333f) ( aka: 0.5333, 0.2666, 0.3333, 0.1333, etc )
-            float BASE_UNIT_DIM = m_bigBaseUnit ? 0.5333333f : 0.2666666f;
+            float BASE_UNIT_DIM = 0.2666666f;// m_bigBaseUnit ? 0.5333333f : 0.2666666f;
 
             // All are in UNIT metrics!
             int VERTEX_PER_MAP = (int)(SharedConst.GRID_SIZE / BASE_UNIT_DIM + 0.5f);
-            int VERTEX_PER_TILE = m_bigBaseUnit ? 40 : 80; // must divide VERTEX_PER_MAP
+            int VERTEX_PER_TILE = 80;// m_bigBaseUnit ? 40 : 80; // must divide VERTEX_PER_MAP
             int TILES_PER_MAP = VERTEX_PER_MAP / VERTEX_PER_TILE;
 
             rcConfig config = new rcConfig();
@@ -417,13 +377,13 @@ namespace DataExtractor.Mmap
             config.ch = BASE_UNIT_DIM;
             config.walkableSlopeAngle = m_maxWalkableAngle;
             config.tileSize = VERTEX_PER_TILE;
-            config.walkableRadius = m_bigBaseUnit ? 1 : 2;
+            config.walkableRadius = 2;// m_bigBaseUnit ? 1 : 2;
             config.borderSize = config.walkableRadius + 3;
             config.maxEdgeLen = VERTEX_PER_TILE + 1;        // anything bigger than tileSize
-            config.walkableHeight = m_bigBaseUnit ? 3 : 6;
+            config.walkableHeight = 6;// m_bigBaseUnit ? 3 : 6;
             // a value >= 3|6 allows npcs to walk over some fences
             // a value >= 4|8 allows npcs to walk over all fences
-            config.walkableClimb = m_bigBaseUnit ? 4 : 8;
+            config.walkableClimb = 8;// m_bigBaseUnit ? 4 : 8;
             config.minRegionArea = dtSqr(60);
             config.mergeRegionArea = dtSqr(50);
             config.maxSimplificationError = 1.8f;           // eliminates most jagged edges (tiny polygons)
@@ -469,7 +429,7 @@ namespace DataExtractor.Mmap
                     // mark all walkable tiles, both liquids and solids
                     byte[] triFlags = new byte[tTriCount];
                     for (var i = 0; i < tTriCount; ++i)
-                        triFlags[i] = 0x01;
+                        triFlags[i] = (byte)NavArea.Ground;
 
                     rcClearUnwalkableTriangles(m_rcContext, tileCfg.walkableSlopeAngle, tVerts, tVertCount, tTris, tTriCount, triFlags);
                     rcRasterizeTriangles(m_rcContext, tVerts, tVertCount, tTris, triFlags, tTriCount, tile.solid, config.walkableClimb);
@@ -552,8 +512,16 @@ namespace DataExtractor.Mmap
             // set polygons as walkable
             // TODO: special flags for DYNAMIC polygons, ie surfaces that can be turned on and off
             for (int i = 0; i < iv.pmesh.npolys; ++i)
-                if (Convert.ToBoolean(iv.pmesh.areas[i] & RC_WALKABLE_AREA))
-                    iv.pmesh.flags[i] = iv.pmesh.areas[i];
+            {
+                byte area = (byte)(iv.pmesh.areas[i] & RC_WALKABLE_AREA);
+                if (area != 0)
+                {
+                    if (area >= (byte)NavArea.MagmaSlime)
+                        iv.pmesh.flags[i] = (ushort)(1 << (63 - area));
+                    else
+                        iv.pmesh.flags[i] = (byte)NavTerrainFlag.Ground; // TODO: these will be dynamic in future
+                }
+            }
 
             // setup mesh parameters
             dtNavMeshCreateParams createParams = new dtNavMeshCreateParams();
@@ -855,20 +823,13 @@ namespace DataExtractor.Mmap
         TerrainBuilder m_terrainBuilder;
         List<MapTiles> m_tiles = new List<MapTiles>();
 
-        string m_offMeshFilePath;
-
         float m_maxWalkableAngle;
-        bool m_bigBaseUnit;
 
         volatile int m_totalTiles;
         volatile int m_totalTilesProcessed;
 
         // build performance - not really used for now
         rcContext m_rcContext;
-
-        List<Thread> _workerThreads = new List<Thread>();
-        BlockingCollection<uint> _queue = new BlockingCollection<uint>();
-        volatile bool _cancelationToken;
 
         VMapManager2 _vmapManager;
     }

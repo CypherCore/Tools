@@ -122,17 +122,21 @@ namespace Framework.Constants
         V9
     }
 
-    public enum NavTerrain
+    public enum NavArea
+    {
+        Empty = 0,
+        // areas 1-60 will be used for destructible areas (currently skipped in vmaps, WMO with flag 1)
+        // ground is the highest value to make recast choose ground over water when merging surfaces very close to each other (shallow water would be walkable) 
+        MagmaSlime = 61, // don't need to differentiate between them
+        Water = 62,
+        Ground = 63,
+    }
+
+    public enum NavTerrainFlag
     {
         Empty = 0x00,
-        Ground = 0x01,
-        Magma = 0x02,
-        Slime = 0x04,
-        Water = 0x08,
-        Unused1 = 0x10,
-        Unused2 = 0x20,
-        Unused3 = 0x40,
-        Unused4 = 0x80
-        // we only have 8 bits
+        Ground = 1 << (63 - NavArea.Ground),
+        Water = 1 << (63 - NavArea.Water),
+        MagmaSlime = 1 << (63 - NavArea.MagmaSlime)
     }
 }

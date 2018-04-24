@@ -152,6 +152,8 @@ namespace Framework.Collision
             corner = iCorner;
         }
 
+        public uint GetLiquidType() { return iType; }
+
         uint iTilesX;
         uint iTilesY;
         Vector3 iCorner;
