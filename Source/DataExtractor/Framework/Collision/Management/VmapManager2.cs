@@ -15,11 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Constants;
-using Framework.GameMath;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 
 namespace Framework.Collision
 {
@@ -34,20 +31,20 @@ namespace Framework.Collision
     {
         public void Initialize(MultiMap<uint, uint> mapData)
         {
-            iChildMapData = mapData;
+            _childMapData = mapData;
             foreach (var pair in mapData)
-                iParentMapData[pair.Value] = pair.Key;
+                _parentMapData[pair.Value] = pair.Key;
         }
 
-        public VMAPLoadResult loadMap(string basePath, uint mapId, uint x, uint y)
+        public VMAPLoadResult LoadMap(string basePath, uint mapId, uint x, uint y)
         {
             var result = VMAPLoadResult.Ignored;
-            if (loadSingleMap(mapId, basePath, x, y))
+            if (LoadSingleMap(mapId, basePath, x, y))
             {
                 result = VMAPLoadResult.OK;
-                var childMaps = iChildMapData.LookupByKey(mapId);
+                var childMaps = _childMapData.LookupByKey(mapId);
                 foreach (uint childMapId in childMaps)
-                    if (!loadSingleMap(childMapId, basePath, x, y))
+                    if (!LoadSingleMap(childMapId, basePath, x, y))
                         result = VMAPLoadResult.Error;
             }
             else
@@ -56,17 +53,17 @@ namespace Framework.Collision
             return result;
         }
 
-        public bool loadSingleMap(uint mapId, string basePath, uint tileX, uint tileY)
+        public bool LoadSingleMap(uint mapId, string basePath, uint tileX, uint tileY)
         {
-            var instanceTree = iInstanceMapTrees.LookupByKey(mapId);
+            var instanceTree = _instanceMapTrees.LookupByKey(mapId);
             if (instanceTree == null)
             {
-                string mapFileName = getMapFileName(mapId);
+                string mapFileName = GetMapFileName(mapId);
                 StaticMapTree newTree = new StaticMapTree(mapId, basePath);
-                if (!newTree.InitMap(mapFileName, this))
+                if (!newTree.InitMap(mapFileName))
                     return false;
 
-                iInstanceMapTrees.Add(mapId, newTree);
+                _instanceMapTrees.Add(mapId, newTree);
 
                 instanceTree = newTree;
             }
@@ -74,9 +71,9 @@ namespace Framework.Collision
             return instanceTree.LoadMapTile(tileX, tileY, this);
         }
 
-        public WorldModel acquireModelInstance(string basepath, string filename)
+        public WorldModel AcquireModelInstance(string basepath, string filename)
         {
-            var model = iLoadedModelFiles.LookupByKey(filename);
+            var model = _loadedModelFiles.LookupByKey(filename);
             if (model == null)
             {
                 WorldModel worldmodel = new WorldModel();
@@ -87,90 +84,90 @@ namespace Framework.Collision
                 }
 
                 //Console.WriteLine($"VMapManager: loading file '{filename}'");
-                iLoadedModelFiles.Add(filename, new ManagedModel());
-                model = iLoadedModelFiles.LookupByKey(filename);
-                model.setModel(worldmodel);
+                _loadedModelFiles.Add(filename, new ManagedModel());
+                model = _loadedModelFiles.LookupByKey(filename);
+                model.SetModel(worldmodel);
             }
-            model.incRefCount();
-            return model.getModel();
+            model.IncRefCount();
+            return model.GetModel();
         }
 
-        public void releaseModelInstance(string filename)
+        public void ReleaseModelInstance(string filename)
         {
-            var model = iLoadedModelFiles.LookupByKey(filename);
+            var model = _loadedModelFiles.LookupByKey(filename);
             if (model == null)
             {
                 Console.WriteLine($"VMapManager: trying to unload non-loaded file '{filename}'");
                 return;
             }
-            if (model.decRefCount() == 0)
+            if (model.DecRefCount() == 0)
             {
                 //Console.WriteLine($"VMapManager: unloading file '{filename}'");
-                iLoadedModelFiles.Remove(filename);
+                _loadedModelFiles.Remove(filename);
             }
         }
 
-        public void getInstanceMapTree(out Dictionary<uint, StaticMapTree> instanceMapTree)
+        public void GetInstanceMapTree(out Dictionary<uint, StaticMapTree> instanceMapTree)
         {
-            instanceMapTree = iInstanceMapTrees;
+            instanceMapTree = _instanceMapTrees;
         }
 
-        public static string getMapFileName(uint mapId)
+        public static string GetMapFileName(uint mapId)
         {
             return string.Format("{0:D4}.vmtree", mapId);
         }
 
-        public void unloadMap(uint mapId, uint x, uint y)
+        public void UnloadMap(uint mapId, uint x, uint y)
         {
-            var childMaps = iChildMapData.LookupByKey(mapId);
+            var childMaps = _childMapData.LookupByKey(mapId);
             foreach (uint childMapId in childMaps)
-                unloadSingleMap(childMapId, x, y);
+                UnloadSingleMap(childMapId, x, y);
 
-            unloadSingleMap(mapId, x, y);
+            UnloadSingleMap(mapId, x, y);
         }
 
-        public void unloadSingleMap(uint mapId, uint x, uint y)
+        public void UnloadSingleMap(uint mapId, uint x, uint y)
         {
-            var instanceTree = iInstanceMapTrees.LookupByKey(mapId);
+            var instanceTree = _instanceMapTrees.LookupByKey(mapId);
             if (instanceTree != null)
             {
                 instanceTree.UnloadMapTile(x, y, this);
-                if (instanceTree.numLoadedTiles() == 0)
+                if (instanceTree.NumLoadedTiles() == 0)
                 {
-                    iInstanceMapTrees.Remove(mapId);
+                    _instanceMapTrees.Remove(mapId);
                 }
             }
         }
 
-        public int getParentMapId(uint mapId)
+        public int GetParentMapId(uint mapId)
         {
-            if (iParentMapData.ContainsKey(mapId))
-                return (int)iParentMapData[mapId];
+            if (_parentMapData.ContainsKey(mapId))
+                return (int)_parentMapData[mapId];
 
             return -1;
         }
 
-        Dictionary<string, ManagedModel> iLoadedModelFiles = new Dictionary<string, ManagedModel>();
-        Dictionary<uint, StaticMapTree> iInstanceMapTrees = new Dictionary<uint, StaticMapTree>();
-        MultiMap<uint, uint> iChildMapData = new MultiMap<uint, uint>();
-        Dictionary<uint, uint> iParentMapData = new Dictionary<uint, uint>();
+        Dictionary<string, ManagedModel> _loadedModelFiles = new Dictionary<string, ManagedModel>();
+        Dictionary<uint, StaticMapTree> _instanceMapTrees = new Dictionary<uint, StaticMapTree>();
+        MultiMap<uint, uint> _childMapData = new MultiMap<uint, uint>();
+        Dictionary<uint, uint> _parentMapData = new Dictionary<uint, uint>();
     }
 
     public class ManagedModel
     {
         public ManagedModel()
         {
-            iModel = null;
-            iRefCount = 0;
+            _model = null;
+            _refCount = 0;
         }
 
-        public void setModel(WorldModel model) { iModel = model; }
-        public WorldModel getModel() { return iModel; }
-        public void incRefCount() { ++iRefCount; }
-        public int decRefCount() { return --iRefCount; }
+        public void SetModel(WorldModel model) { _model = model; }
+        public WorldModel GetModel() { return _model; }
+        public void IncRefCount() { ++_refCount; }
+        public int DecRefCount() { return --_refCount; }
 
-        WorldModel iModel;
-        int iRefCount;
+        WorldModel _model;
+        int _refCount;
     }
 }
 

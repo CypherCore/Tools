@@ -15,14 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System;
-using System.Text;
-using Framework.ClientReader;
-using System.IO;
-using DataExtractor.Vmap.Collision;
-using System.Collections.Generic;
-using System.Linq;
 using Framework.Constants;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
 
 namespace DataExtractor.Vmap
 {
@@ -77,12 +74,12 @@ namespace DataExtractor.Vmap
 
         public static void ParsMapFiles()
         {
-            Dictionary<uint, Tuple<string, short>> map_ids = new Dictionary<uint, Tuple<string, short>>();
+            Dictionary<uint, Tuple<string, int>> map_ids = new Dictionary<uint, Tuple<string, int>>();
             List<uint> maps_that_are_parents = new List<uint>();
 
             foreach (var record in CliDB.MapStorage.Values)
             {
-                map_ids[record.Id] = Tuple.Create(record.Directory, record.ParentMapID);
+                map_ids[record.Id] = Tuple.Create(record.Directory, (int)record.ParentMapID);
                 if (record.ParentMapID >= 0)
                     maps_that_are_parents.Add((uint)record.ParentMapID);
             }
@@ -124,7 +121,7 @@ namespace DataExtractor.Vmap
                             ADTFile ADT = WDT.GetMap(x, y);
                             if (ADT != null)
                             {
-                                success = ADT.init(pair.Key, x, y, pair.Key);
+                                success = ADT.init(pair.Key, pair.Key);
                             }
 
                             if (!success && parentWDT != null)
@@ -132,7 +129,7 @@ namespace DataExtractor.Vmap
                                 ADTFile parentADT = parentWDT.GetMap(x, y);
                                 if (parentADT != null)
                                 {
-                                    parentADT.init(pair.Key, x, y, (uint)pair.Value.Item2);
+                                    parentADT.init(pair.Key, (uint)pair.Value.Item2);
                                 }
                             }
                         }
@@ -227,6 +224,9 @@ namespace DataExtractor.Vmap
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(Program.wmoDirectory + plainName, FileMode.Create, FileAccess.Write)))
             {
                 froot.ConvertToVMAPRootWmo(binaryWriter);
+                   
+                WmoDoodads[plainName] = froot.DoodadData;
+                WMODoodadData doodads = WmoDoodads[plainName];
                 int Wmo_nVertices = 0;
                 for (int i = 0; i < froot.groupFileDataIDs.Count; ++i)
                 {
@@ -239,6 +239,17 @@ namespace DataExtractor.Vmap
                     }
 
                     Wmo_nVertices += fgroup.ConvertToVMAPGroupWmo(binaryWriter, false);
+                    foreach (ushort groupReference in fgroup.DoodadReferences)
+                    {
+                        if (groupReference >= doodads.Spawns.Count)
+                            continue;
+
+                        uint doodadNameIndex = doodads.Spawns[groupReference].NameIndex;
+                        if (!froot.ValidDoodadNames.Contains(doodadNameIndex))
+                            continue;
+
+                        doodads.References.Add(groupReference);
+                    }
                 }
 
                 binaryWriter.Seek(8, SeekOrigin.Begin); // store the correct no of vertices
@@ -267,9 +278,13 @@ namespace DataExtractor.Vmap
 
         public static bool ExtractSingleModel(string fileName)
         {
-            if (fileName.Substring(fileName.Length - 4, 4) == ".mdx")
+            if (fileName.Length < 4)
+                return false;
+
+            string extension = fileName.Substring(fileName.Length - 4, 4);
+            if (extension == ".mdx" || extension == ".MDX" || extension == ".mdl" || extension == ".MDL")
             {
-                fileName.Remove(fileName.Length - 2, 2);
+                fileName = fileName.Remove(fileName.Length - 2, 2);
                 fileName += "2";
             }
 
@@ -298,5 +313,22 @@ namespace DataExtractor.Vmap
             magic = Encoding.UTF8.GetString(bytes);
             return true;
         }
+
+        public static uint GenerateUniqueObjectId(uint clientId, ushort clientDoodadId)
+        {
+            var key = Tuple.Create(clientId, clientDoodadId);
+            if (!uniqueObjectIds.ContainsKey(key))
+                uniqueObjectIds.Add(key, (uint)(uniqueObjectIds.Count + 1));
+
+            if (uniqueObjectIds.Count == 198660)
+            {
+
+            }
+
+            return uniqueObjectIds[key];
+        }
+
+        static Dictionary<Tuple<uint, ushort>, uint> uniqueObjectIds = new Dictionary<Tuple<uint, ushort>, uint>();
+        public static Dictionary<string, WMODoodadData> WmoDoodads = new Dictionary<string, WMODoodadData>();
     }
 }

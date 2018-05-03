@@ -222,9 +222,11 @@ namespace System
             return (Action<object, object>)setterMethod.CreateDelegate(typeof(Action<object, object>));
         }
 
-        public static string GetPlainName(this string fileName)
+        public static string GetPlainName(this string fileName, int index = -1)
         {
-            int index = fileName.LastIndexOf('\\');
+            if (index == -1)
+                index = fileName.LastIndexOf('\\');
+
             if (index != -1)
                 fileName = fileName.Substring(index + 1);
 

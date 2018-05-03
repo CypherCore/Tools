@@ -15,16 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.IO;
+using Framework.Collision;
 using Framework.Constants;
 using Framework.GameMath;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using Framework.Collision;
-using DataExtractor.Vmap.Collision;
-using DataExtractor;
 
 namespace DataExtractor.Mmap
 {
@@ -85,7 +82,7 @@ namespace DataExtractor.Mmap
             string mapFileName = $"maps/{mapID:D4}_{tileY:D2}_{tileX:D2}.map";
             if (!File.Exists(mapFileName))
             {
-                int parentMapId = vmapManager.getParentMapId(mapID);
+                int parentMapId = vmapManager.GetParentMapId(mapID);
                 if (parentMapId != -1)
                     mapFileName = $"maps/{parentMapId:D4}_{tileY:D2}_{tileX:D2}.map";
             }
@@ -603,7 +600,7 @@ namespace DataExtractor.Mmap
         /**************************************************************************/
         public bool loadVMap(uint mapID, uint tileX, uint tileY, MeshData meshData)
         {
-            bool result = vmapManager.loadSingleMap(mapID, "vmaps", tileX, tileY);
+            bool result = vmapManager.LoadSingleMap(mapID, "vmaps", tileX, tileY);
             bool retval = false;
 
             do
@@ -612,14 +609,14 @@ namespace DataExtractor.Mmap
                     break;
 
                 Dictionary<uint, StaticMapTree> instanceTrees;
-                vmapManager.getInstanceMapTree(out instanceTrees);
+                vmapManager.GetInstanceMapTree(out instanceTrees);
 
                 if (instanceTrees[mapID] == null)
                     break;
 
                 ModelInstance[] models = null;
                 uint count;
-                instanceTrees[mapID].getModelInstances(out models, out count);
+                instanceTrees[mapID].GetModelInstances(out models, out count);
 
                 if (models == null)
                     break;
@@ -631,7 +628,7 @@ namespace DataExtractor.Mmap
                         continue;
 
                     // model instances exist in tree even though there are instances of that model in this tile
-                    WorldModel worldModel = instance.getWorldModel();
+                    WorldModel worldModel = instance.GetWorldModel();
                     if (worldModel == null)
                         continue;
 
@@ -658,7 +655,7 @@ namespace DataExtractor.Mmap
                         List<MeshTriangle> tempTriangles;
                         WmoLiquid liquid = null;
 
-                        it.getMeshData(out tempVertices, out tempTriangles, out liquid);
+                        it.GetMeshData(out tempVertices, out tempTriangles, out liquid);
 
                         // first handle collision mesh
                         transform(tempVertices.ToArray(), transformedVertices, scale, rotation, position);
@@ -675,7 +672,7 @@ namespace DataExtractor.Mmap
                             List<uint> liqTris = new List<uint>();
                             uint tilesX, tilesY, vertsX, vertsY;
                             Vector3 corner;
-                            liquid.getPosInfo(out tilesX, out tilesY, out corner);
+                            liquid.GetPosInfo(out tilesX, out tilesY, out corner);
                             vertsX = tilesX + 1;
                             vertsY = tilesY + 1;
                             byte[] flags = liquid.iFlags;
@@ -756,7 +753,7 @@ namespace DataExtractor.Mmap
             }
             while (false);
 
-            vmapManager.unloadSingleMap(mapID, tileX, tileY);
+            vmapManager.UnloadSingleMap(mapID, tileX, tileY);
 
             return retval;
         }
@@ -870,7 +867,8 @@ namespace DataExtractor.Mmap
             {
                 // pretty silly thing, as we parse entire file and load only the tile we need
                 // but we don't expect this file to be too large
-                while (binaryReader.BaseStream.Position < binaryReader.BaseStream.Length)
+                long fileLength = binaryReader.BaseStream.Length;
+                while (binaryReader.BaseStream.Position < fileLength)
                 {
                     var s = binaryReader.ReadString(512);
                     float[] p0 = new float[0];

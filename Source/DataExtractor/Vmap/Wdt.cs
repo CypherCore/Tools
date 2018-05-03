@@ -45,7 +45,8 @@ namespace DataExtractor.Vmap
             {
                 using (BinaryReader binaryReader = new BinaryReader(stream))
                 {
-                    while (binaryReader.BaseStream.Position < binaryReader.BaseStream.Length)
+                    long fileLength = binaryReader.BaseStream.Length;
+                    while (binaryReader.BaseStream.Position < fileLength)
                     {
                         string fourcc = binaryReader.ReadStringFromChars(4, true);
                         uint size = binaryReader.ReadUInt32();
@@ -82,13 +83,15 @@ namespace DataExtractor.Vmap
                                     MODF mapObjDef = binaryReader.Read<MODF>();
                                     if (!Convert.ToBoolean(mapObjDef.Flags & 0x8))
                                     {
-                                        WMORoot.Extract(mapObjDef, _wmoNames[(int)mapObjDef.Id], mapId, 65, 65, mapId, binaryWriter, null);
+                                        WMORoot.Extract(mapObjDef, _wmoNames[(int)mapObjDef.Id], true, mapId, mapId, binaryWriter, null);
+                                        Model.ExtractSet(VmapFile.WmoDoodads[_wmoNames[(int)mapObjDef.Id]], mapObjDef, true, mapId, mapId, binaryWriter, null);
                                     }
                                     else
                                     {
                                         string fileName = $"FILE{mapObjDef.Id}:8X.xxx";
-                                        VmapFile.ExtractSingleModel(fileName);
-                                        WMORoot.Extract(mapObjDef, fileName, mapId, 65, 65, mapId, binaryWriter, null);
+                                        VmapFile.ExtractSingleWmo(fileName);
+                                        WMORoot.Extract(mapObjDef, fileName, true, mapId, mapId, binaryWriter, null);
+                                        Model.ExtractSet(VmapFile.WmoDoodads[fileName], mapObjDef, true, mapId, mapId, binaryWriter, null);
                                     }
                                 }
                             }

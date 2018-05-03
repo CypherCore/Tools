@@ -1,17 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.IO;
-using Framework.CASC.Constants;
-using Framework.CASC.Handlers;
+﻿using Framework.CASC.Handlers;
 using Framework.ClientReader;
-using Framework.Constants;
-using System.Text.RegularExpressions;
-using DataExtractor.Vmap.Collision;
-using DataExtractor.Vmap;
-using Framework.CASC;
-using DataExtractor.Mmap;
-using System.Linq;
+using System;
+using System.Collections.Generic;
+using System.IO;
 
 namespace DataExtractor
 {

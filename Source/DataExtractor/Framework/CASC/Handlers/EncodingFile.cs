@@ -15,9 +15,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.CASC.Structures;
 using System.Collections.Generic;
 using System.IO;
-using Framework.CASC.Structures;
 
 namespace Framework.CASC.Handlers
 {

@@ -15,15 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.Collision;
+using Framework.Constants;
+using Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Framework.GameMath;
-using Framework.Constants;
 using System.Linq;
-using Framework.Collision;
-using System.Threading.Tasks;
-using DataExtractor.Vmap;
 
 namespace DataExtractor.Vmap.Collision
 {
@@ -41,6 +39,8 @@ namespace DataExtractor.Vmap.Collision
             if (!success)
                 return false;
 
+            float invTileSize = 1.0f / 533.33333f;
+
             // export Map data
             foreach (var mapPair in mapData)
             {
@@ -57,19 +57,23 @@ namespace DataExtractor.Vmap.Collision
                         if (!calculateTransformedBound(entry))
                             continue;
                     }
-                    else if (Convert.ToBoolean(entry.flags & ModelFlags.WorldSpawn)) // WMO maps and terrain maps use different origin, so we need to adapt :/
-                    {
-                        /// @todo remove extractor hack and uncomment below line:
-                        //entry.second.iPos += Vector3(533.33333f*32, 533.33333f*32, 0.f);
-                        entry.iBound = entry.iBound + new Vector3(533.33333f * 32, 533.33333f * 32, 0.0f);
-                    }
+
                     mapSpawns.Add(entry);
                     spawnedModelFiles.Add(entry.name);
+
+                    var tileEntries = Convert.ToBoolean(entry.flags & ModelFlags.ParentSpawn) ? mapSpawn.ParentTileEntries : mapSpawn.TileEntries;
+
+                    AxisAlignedBox bounds = entry.iBound;
+                    Vector2 low = new Vector2(bounds.Lo.X * invTileSize, bounds.Lo.Y * invTileSize);
+                    Vector2 high = new Vector2(bounds.Hi.X * invTileSize, bounds.Hi.Y * invTileSize);
+                    for (uint x = (ushort)low.X; x <= (ushort)high.X; ++x)
+                        for (uint y = (ushort)low.Y; y <= (ushort)high.Y; ++y)
+                            tileEntries.Add(StaticMapTree.PackTileID(x, y), new TileSpawn(entry.ID, entry.flags));
                 }
 
                 Console.WriteLine($"Creating map tree for map {mapPair.Key}...");
                 BIH pTree = new BIH();
-                pTree.build(mapSpawns, BoundsTrait.getBounds);
+                pTree.build(mapSpawns, BoundsTrait.GetBounds);
 
                 // ===> possibly move this code to StaticMapTree class
 
@@ -79,19 +83,10 @@ namespace DataExtractor.Vmap.Collision
                 {
                     //general info
                     writer.WriteString(SharedConst.VMAP_MAGIC);
-                    uint globalTileID = StaticMapTree.packTileID(65, 65);
-                    var globalRange = mapSpawn.TileEntries.LookupByKey(globalTileID);
-                    bool isTiled = globalRange.Count == 0; // only maps without terrain (tiles) have global WMO
-                    writer.Write(isTiled);
 
                     // Nodes
                     writer.WriteString("NODE");
                     pTree.writeToFile(writer);
-                    // global map spawns (WDT), if any (most instances)
-                    writer.WriteString("GOBJ");
-
-                    foreach (var glob in globalRange)
-                        ModelSpawn.writeToFile(writer, mapSpawn.UniqueEntries[glob.Id]);
 
                     // spawn id to index map
                     writer.WriteString("SIDX");
@@ -103,31 +98,30 @@ namespace DataExtractor.Vmap.Collision
                     }
                 }
 
-                // write map tile files, similar to ADT files, only with extra BSP tree node info
+                // write map tile files, similar to ADT files, only with extra BIH tree node info
                 foreach (var key in mapSpawn.TileEntries.Keys)
                 {
                     var spawnList = mapSpawn.TileEntries[key];
 
-                    if (Convert.ToBoolean(spawnList.First().Flags & ModelFlags.WorldSpawn)) // WDT spawn, saved as tile 65/65 currently...
-                        continue;
-                    if (Convert.ToBoolean(spawnList.First().Flags & ModelFlags.ParentSpawn)) // tile belongs to parent map
-                        continue;
-
                     uint x, y;
-                    StaticMapTree.unpackTileID(key, out x, out y);
-                    string tilefilename =  $"{iDestDir}/{mapPair.Key:D4}_{x:D2}_{y:D2}.vmtile";
+                    StaticMapTree.UnpackTileID(key, out x, out y);
+                    string tilefilename =  $"{iDestDir}/{mapPair.Key:D4}_{y:D2}_{x:D2}.vmtile";
                     using (BinaryWriter writer = new BinaryWriter(File.Open(tilefilename, FileMode.Create, FileAccess.Write)))
                     {
+                        var parentTileEntries = mapPair.Value.ParentTileEntries[key];
+
+                        int nSpawns = spawnList.Count + parentTileEntries.Count;
+
                         // file header
                         writer.WriteString(SharedConst.VMAP_MAGIC);
                         // write number of tile spawns
-                        writer.Write(spawnList.Count);
+                        writer.Write(nSpawns);
                         // write tile spawns
-                        foreach (var nSpawn in spawnList)
-                        {
-                            ModelSpawn spawn2 = mapSpawn.UniqueEntries[nSpawn.Id];
-                            ModelSpawn.writeToFile(writer, spawn2);
-                        }
+                        foreach (var tileSpawn in spawnList)
+                            ModelSpawn.WriteToFile(writer, mapPair.Value.UniqueEntries[tileSpawn.Id]);
+
+                        foreach (var spawnItr in parentTileEntries)
+                            ModelSpawn.WriteToFile(writer, mapPair.Value.UniqueEntries[spawnItr.Id]);
                     }
                 }
             }
@@ -158,32 +152,25 @@ namespace DataExtractor.Vmap.Collision
             using (BinaryReader binaryReader = new BinaryReader(File.Open(fname, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 Console.WriteLine("Read coordinate mapping...");
-                uint mapID, tileX, tileY;
-                ModelSpawn spawn;
-
-                while (binaryReader.BaseStream.Position + 4 < binaryReader.BaseStream.Length)
+                long fileLength = binaryReader.BaseStream.Length;
+                while (binaryReader.BaseStream.Position + 4 < fileLength)
                 {
-                    // read mapID, tileX, tileY, Flags, NameSet, UniqueId, Pos, Rot, Scale, Bound_lo, Bound_hi, name
-                    mapID = binaryReader.ReadUInt32();
-                    tileX = binaryReader.ReadUInt32();
-                    tileY = binaryReader.ReadUInt32();
-                    if (!ModelSpawn.readFromFile(binaryReader, out spawn))
+                    // read mapID, Flags, NameSet, UniqueId, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+                    uint mapID = binaryReader.ReadUInt32();
+
+                    ModelSpawn spawn;
+                    if (!ModelSpawn.ReadFromFile(binaryReader, out spawn))
                         break;
 
-                    MapSpawns current;
                     if (!mapData.ContainsKey(mapID))
                     {
                         Console.WriteLine($"spawning Map {mapID}");
-                        current = new MapSpawns();
-                        mapData[mapID] = current;
+                        mapData[mapID] = new MapSpawns(mapID);
                     }
-                    else
-                        current = mapData[mapID];
 
+                    MapSpawns current = mapData[mapID];
                     if (!current.UniqueEntries.ContainsKey(spawn.ID))
                         current.UniqueEntries.Add(spawn.ID, spawn);
-
-                    current.TileEntries.Add(StaticMapTree.packTileID(tileX, tileY), new TileSpawn(spawn.ID, spawn.flags));
                 }
             }
 
@@ -208,32 +195,9 @@ namespace DataExtractor.Vmap.Collision
                 Console.WriteLine($"Warning: '{modelFilename}' does not seem to be a M2 model!");
 
             AxisAlignedBox modelBound = AxisAlignedBox.Zero();
-            bool boundEmpty = true;
+            modelBound.merge(modelPosition.transform(raw_model.groupsArray[0].bounds.Lo));
+            modelBound.merge(modelPosition.transform(raw_model.groupsArray[0].bounds.Hi));
 
-            for (uint g = 0; g < groups; ++g) // should be only one for M2 files...
-            {
-                var vertices = raw_model.groupsArray[g].vertexArray;
-
-                if (vertices.Empty())
-                {
-                    Console.WriteLine($"error: model {spawn.name} has no geometry!");
-                    continue;
-                }
-
-                int nvectors = vertices.Count;
-                for (int i = 0; i < nvectors; ++i)
-                {
-                    Vector3 v = modelPosition.transform(vertices[i]);
-
-                    if (boundEmpty)
-                    {
-                        modelBound = new AxisAlignedBox(v, v);
-                        boundEmpty = false;
-                    }
-                    else
-                        modelBound.merge(v);
-                }
-            }
             spawn.iBound = modelBound + spawn.iPos;
             spawn.flags |= ModelFlags.HasBound;
             return true;
@@ -259,8 +223,8 @@ namespace DataExtractor.Vmap.Collision
                 {
                     GroupModel_Raw raw_group = raw_model.groupsArray[g];
                     var groupModel = new GroupModel(raw_group.mogpflags, raw_group.GroupWMOID, raw_group.bounds);
-                    groupModel.setMeshData(raw_group.vertexArray, raw_group.triangles.ToList());
-                    groupModel.setLiquidData(raw_group.liquid);
+                    groupModel.SetMeshData(raw_group.vertexArray, raw_group.triangles.ToList());
+                    groupModel.SetLiquidData(raw_group.liquid);
                     groupsArray.Add(groupModel);
                 }
 
@@ -285,7 +249,8 @@ namespace DataExtractor.Vmap.Collision
                 {
                     writer.WriteString(SharedConst.VMAP_MAGIC);
 
-                    while (reader.BaseStream.Position < reader.BaseStream.Length)
+                    long fileLength = reader.BaseStream.Length;
+                    while (reader.BaseStream.Position < fileLength)
                     {
                         uint displayId = reader.ReadUInt32();
                         bool isWmo = reader.ReadBoolean();
@@ -349,10 +314,17 @@ namespace DataExtractor.Vmap.Collision
         HashSet<string> spawnedModelFiles = new HashSet<string>();
     }
 
-    class MapSpawns
+    public class MapSpawns
     {
+        public MapSpawns(uint mapId)
+        {
+            MapId = mapId;
+        }
+
+        public uint MapId;
         public SortedDictionary<uint, ModelSpawn> UniqueEntries = new SortedDictionary<uint, ModelSpawn>();
         public MultiMap<uint, TileSpawn> TileEntries = new MultiMap<uint, TileSpawn>();
+        public MultiMap<uint, TileSpawn> ParentTileEntries = new MultiMap<uint, TileSpawn>();
     }
 
     class ModelPosition
@@ -531,7 +503,7 @@ namespace DataExtractor.Vmap.Collision
         public WmoLiquid liquid;
     }
 
-    struct TileSpawn
+    public struct TileSpawn
     {
         public TileSpawn(uint id, uint flags)
         {

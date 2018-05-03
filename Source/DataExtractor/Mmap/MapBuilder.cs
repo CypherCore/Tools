@@ -15,22 +15,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.Collision;
+using Framework.Constants;
 using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Threading;
-using Framework;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
-using Framework.Constants;
-using System.Runtime.InteropServices;
-using Framework.Collision;
+using System.Threading;
 
 namespace DataExtractor.Mmap
 {
-    using static Recast;
     using static Detour;
+    using static Recast;
 
     class MapBuilder
     {
@@ -86,7 +82,7 @@ namespace DataExtractor.Mmap
                 {
                     tileX = uint.Parse(files[i].Substring(8, 2));
                     tileY = uint.Parse(files[i].Substring(5, 2));
-                    tileID = StaticMapTree.packTileID(tileY, tileX);
+                    tileID = StaticMapTree.PackTileID(tileY, tileX);
 
                     tiles.Add(tileID);
                     count++;
@@ -97,7 +93,7 @@ namespace DataExtractor.Mmap
                 {
                     tileY = uint.Parse(files[i].Substring(5, 2));
                     tileX = uint.Parse(files[i].Substring(8, 2));
-                    tileID = StaticMapTree.packTileID(tileX, tileY);
+                    tileID = StaticMapTree.PackTileID(tileX, tileY);
 
                     if (tiles.Add(tileID))
                         count++;
@@ -186,7 +182,7 @@ namespace DataExtractor.Mmap
                 {
                     for (uint j = minY; j <= maxY; ++j)
                     {
-                        uint packTileId = StaticMapTree.packTileID(i, j);
+                        uint packTileId = StaticMapTree.PackTileID(i, j);
                         if (!tiles.Contains(packTileId))
                         {
                             tiles.Add(packTileId);
@@ -213,7 +209,7 @@ namespace DataExtractor.Mmap
                 foreach (var it in tiles)
                 {
                     // unpack tile coords
-                    StaticMapTree.unpackTileID(it, out uint tileX, out uint tileY);
+                    StaticMapTree.UnpackTileID(it, out uint tileX, out uint tileY);
 
                     ++m_totalTilesProcessed;
                     if (shouldSkipTile(mapID, tileX, tileY))
@@ -266,7 +262,7 @@ namespace DataExtractor.Mmap
         void buildNavMesh(uint mapID, out dtNavMesh navMesh)
         {
             // if map has a parent we use that to generate dtNavMeshParams - worldserver will load all missing tiles from that map
-            int navMeshParamsMapId = _vmapManager.getParentMapId(mapID);
+            int navMeshParamsMapId = _vmapManager.GetParentMapId(mapID);
             if (navMeshParamsMapId == -1)
                 navMeshParamsMapId = (int)mapID;
 
@@ -288,7 +284,7 @@ namespace DataExtractor.Mmap
             uint tileXMin = 64, tileYMin = 64, tileXMax = 0, tileYMax = 0;
             foreach (var it in tiles)
             {
-                StaticMapTree.unpackTileID(it, out uint tileX, out uint tileY);
+                StaticMapTree.UnpackTileID(it, out uint tileX, out uint tileY);
 
                 if (tileX > tileXMax)
                     tileXMax = tileX;

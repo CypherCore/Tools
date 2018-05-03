@@ -15,14 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.CASC.Constants;
+using Framework.CASC.FileSystem.Structures;
+using Framework.CASC.Structures;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Framework.CASC.Constants;
-using Framework.CASC.Structures;
-using Framework.CASC.FileSystem.Structures;
 
 namespace Framework.CASC.Handlers
 {

@@ -15,19 +15,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using DataExtractor.Mmap;
+using DataExtractor.Vmap;
+using DataExtractor.Vmap.Collision;
+using Framework.CASC;
 using Framework.CASC.Constants;
 using Framework.CASC.Handlers;
-using Framework.ClientReader;
 using Framework.Constants;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
-using DataExtractor.Vmap.Collision;
-using DataExtractor.Vmap;
-using Framework.CASC;
-using DataExtractor.Mmap;
-using System.Linq;
 
 namespace DataExtractor
 {
@@ -305,7 +303,7 @@ namespace DataExtractor
 
         static void ExtractMMaps()
         {
-            /*if (!Directory.Exists("maps") || Directory.GetFiles("maps").Length == 0)
+            if (!Directory.Exists("maps") || Directory.GetFiles("maps").Length == 0)
             {
                 Console.WriteLine("'maps' directory is empty or does not exist");
                 return;
@@ -334,9 +332,9 @@ namespace DataExtractor
             MapBuilder builder = new MapBuilder(vm);
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            builder.buildAllMaps(0);
+            builder.buildAllMaps();
 
-            Console.WriteLine($"Finished. MMAPS were built in {watch.ElapsedMilliseconds} ms!");*/
+            Console.WriteLine($"Finished. MMAPS were built in {watch.ElapsedMilliseconds} ms!");
         }
 
         public static void CreateDirectory(string path)

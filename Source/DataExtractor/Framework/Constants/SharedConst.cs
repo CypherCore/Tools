@@ -15,15 +15,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System;
 using Framework.CASC.Constants;
+using System;
 
 namespace Framework.Constants
 {
     class SharedConst
     {
-        public const string VMAP_MAGIC = "VMAP_4.7";
-        public const string RAW_VMAP_MAGIC = "VMAP047";
+        public const string VMAP_MAGIC = "VMAP_4.8";
+        public const string RAW_VMAP_MAGIC = "VMAP048";
 
         public const float LIQUID_TILE_SIZE = 533.333f / 128.0f;
 
@@ -43,9 +43,9 @@ namespace Framework.Constants
             LocaleMask.itIT
         };
 
-        public const uint MMAP_MAGIC = 0x4d4d4150;   // 'MMAP'
-        public const uint MMAP_VERSION = 8;
-        public const uint MAP_VERSION_MAGIC = 0x382E3176;        
+        public const uint MMAP_MAGIC = 0x4D4D4150;   // 'MMAP'
+        public const uint MMAP_VERSION = 9;
+        public const uint MAP_VERSION_MAGIC = 0x392E3176;        
 
         public const int V9_SIZE = 129;
         public const int V9_SIZE_SQ = V9_SIZE * V9_SIZE;
@@ -102,9 +102,8 @@ namespace Framework.Constants
     public struct ModelFlags
     {
         public const uint M2 = 1;
-        public const uint WorldSpawn = 1 << 1;
-        public const uint HasBound = 1 << 2;
-        public const uint ParentSpawn = 1 << 3;
+        public const uint HasBound = 1 << 1;
+        public const uint ParentSpawn = 1 << 2;
     }
 
     public enum Spot

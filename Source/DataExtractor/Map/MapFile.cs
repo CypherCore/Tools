@@ -15,12 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System;
-using System.Text;
-using System.IO;
 using Framework.CASC.Handlers;
-using System.Runtime.InteropServices;
 using Framework.Constants;
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
 
 namespace DataExtractor
 {
@@ -30,11 +29,11 @@ namespace DataExtractor
         public static int ADT_CELL_SIZE = 8;
         public static int ADT_GRID_SIZE = (ADT_CELLS_PER_GRID * ADT_CELL_SIZE);
 
-        static uint MAP_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("MAPS"), 0);
-        static uint MAP_VERSION_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("v1.9"), 0);
-        static uint MAP_AREA_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("AREA"), 0);
-        static uint MAP_HEIGHT_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("MHGT"), 0);
-        static uint MAP_LIQUID_MAGIC = BitConverter.ToUInt32(Encoding.ASCII.GetBytes("MLIQ"), 0);
+        const uint MAP_MAGIC = 0x5350414D; //"MAPS";
+        const uint MAP_VERSION_MAGIC = 0x392E3176; //"v1.9";
+        const uint MAP_AREA_MAGIC = 0x41455241; //"AREA";
+        const uint MAP_HEIGHT_MAGIC = 0x5447484D; //"MHGT";
+        const uint MAP_LIQUID_MAGIC = 0x51494C4D; //"MLIQ";
 
         static MapFile()
         {

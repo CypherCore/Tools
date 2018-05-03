@@ -15,11 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.CASC.Structures;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
-using Framework.CASC.Structures;
-using System;
 using System.Security.Cryptography;
 
 namespace Framework.CASC.Handlers

@@ -1,10 +1,9 @@
-﻿using System;
+﻿using Framework.Constants;
+using Framework.GameMath;
+using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
 using System.Runtime.InteropServices;
-using Framework.GameMath;
-using Framework.Constants;
 
 namespace DataExtractor.Vmap
 {
@@ -40,16 +39,18 @@ namespace DataExtractor.Vmap
 
                 uint m2start = 0;
                 string b;
-                while (reader.BaseStream.Position + 4 < reader.BaseStream.Length && (b = reader.ReadStringFromChars(4)) != "MD20")
+                long fileLength = reader.BaseStream.Length;
+                while (reader.BaseStream.Position + 4 < fileLength && (b = reader.ReadStringFromChars(4)) != "MD20")
                 {
                     m2start += 4;
-                    if (m2start + Marshal.SizeOf<ModelHeader>() > reader.BaseStream.Length)
+                    if (m2start + Marshal.SizeOf<ModelHeader>() > fileLength)
                         return false;
                 }
 
                 reader.BaseStream.Seek(m2start, SeekOrigin.Begin);
-                header = reader.ReadStruct<ModelHeader>();
-                string gfdg = Encoding.UTF8.GetString(header.id);
+                header = reader.Read<ModelHeader>();
+
+                bounds = header.collisionBox;
                 if (header.nBoundingTriangles > 0)
                 {
                     reader.BaseStream.Seek(m2start + header.ofsBoundingVertices, SeekOrigin.Begin);
@@ -91,8 +92,8 @@ namespace DataExtractor.Vmap
                 binaryWriter.Write(nofgroups);
                 for (var i = 0; i < 3; ++i)
                     binaryWriter.Write(N[i]);// rootwmoid, flags, groupid
-                for (var i = 0; i < 3 * 2; ++i)
-                    binaryWriter.Write(N[i]);//bbox, only needed for WMO currently
+                binaryWriter.WriteVector3(bounds.Lo);//bbox, only needed for WMO currently
+                binaryWriter.WriteVector3(bounds.Hi);
                 binaryWriter.Write(N[0]);// liquidflags
                 binaryWriter.WriteString("GRP ");
 
@@ -144,11 +145,8 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        public static void Extract(MDDF doodadDef, string ModelInstName, uint mapID, uint tileX, uint tileY, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
+        public static void Extract(MDDF doodadDef, string ModelInstName, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
         {
-            // scale factor - divide by 1024. blizzard devs must be on crack, why not just use a float?
-            float sc = doodadDef.Scale / 1024.0f;
-
             if (!File.Exists(Program.wmoDirectory + ModelInstName))
                 return;
 
@@ -160,23 +158,23 @@ namespace DataExtractor.Vmap
                     return;
             }
 
+            // scale factor - divide by 1024. blizzard devs must be on crack, why not just use a float?
+            float sc = doodadDef.Scale / 1024.0f;
+
             Vector3 position = fixCoords(doodadDef.Position);
 
             ushort nameSet = 0;// not used for models
-            uint tcflags = ModelFlags.M2;
-            if (tileX == 65 && tileY == 65)
-                tcflags |= ModelFlags.WorldSpawn;
+            uint uniqueId = VmapFile.GenerateUniqueObjectId(doodadDef.UniqueId, 0);
+            uint flags = ModelFlags.M2;
             if (mapID != originalMapId)
-                tcflags |= ModelFlags.ParentSpawn;
+                flags |= ModelFlags.ParentSpawn;
 
 
-            //write mapID, tileX, tileY, Flags, NameSet, UniqueId, Pos, Rot, Scale, name
+            //write mapID, Flags, NameSet, UniqueId, Pos, Rot, Scale, name
             writer.Write(mapID);
-            writer.Write(tileX);
-            writer.Write(tileY);
-            writer.Write(tcflags);
+            writer.Write(flags);
             writer.Write(nameSet);
-            writer.Write(doodadDef.UniqueId);
+            writer.Write(uniqueId);
             writer.WriteVector3(position);
             writer.WriteVector3(doodadDef.Rotation);
             writer.Write(sc);
@@ -186,12 +184,12 @@ namespace DataExtractor.Vmap
             if (dirfileCache != null)
             {
                 ADTOutputCache cacheModelData = new ADTOutputCache();
-                cacheModelData.Flags = tcflags & ~ModelFlags.ParentSpawn;
+                cacheModelData.Flags = flags & ~ModelFlags.ParentSpawn;
 
                 MemoryStream stream = new MemoryStream();
                 BinaryWriter cacheData = new BinaryWriter(stream);
                 cacheData.Write(nameSet);
-                cacheData.Write(doodadDef.UniqueId);
+                cacheData.Write(uniqueId);
                 cacheData.WriteVector3(position);
                 cacheData.WriteVector3(doodadDef.Rotation);
                 cacheData.Write(sc);
@@ -200,6 +198,105 @@ namespace DataExtractor.Vmap
 
                 cacheModelData.Data = stream.ToArray();
                 dirfileCache.Add(cacheModelData);
+            }
+        }
+
+        public static void ExtractSet(WMODoodadData doodadData, MODF wmo, bool isGlobalWmo, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
+        {
+            if (wmo.DoodadSet >= doodadData.Sets.Count)
+                return;
+
+            Vector3 wmoPosition = new Vector3(wmo.Position.Z, wmo.Position.X, wmo.Position.Y);
+            Matrix3 wmoRotation = Matrix3.fromEulerAnglesZYX(MathFunctions.toRadians(wmo.Rotation.Y), MathFunctions.toRadians(wmo.Rotation.X), MathFunctions.toRadians(wmo.Rotation.Z));
+
+            if (isGlobalWmo)
+                wmoPosition += new Vector3(533.33333f * 32, 533.33333f * 32, 0.0f);
+
+            ushort doodadId = 0;
+            MODS doodadSetData = doodadData.Sets[wmo.DoodadSet];
+            using (BinaryReader reader = new BinaryReader(new MemoryStream(doodadData.Paths)))
+            {
+                foreach (ushort doodadIndex in doodadData.References)
+                {
+                    if (doodadIndex < doodadSetData.StartIndex ||
+                        doodadIndex >= doodadSetData.StartIndex + doodadSetData.Count)
+                        continue;
+
+                    MODD doodad = doodadData.Spawns[doodadIndex];
+
+                    reader.BaseStream.Position = doodad.NameIndex;
+                    string ModelInstName = reader.ReadCString().GetPlainName();
+
+                    if (ModelInstName.Length > 3)
+                    {
+                        string extension = ModelInstName.Substring(ModelInstName.Length - 4);
+                        if (extension == ".mdx" || extension == ".mdl")
+                        {
+                            ModelInstName = ModelInstName.Remove(ModelInstName.Length - 2, 2);
+                            ModelInstName += "2";
+                        }
+                    }
+
+                    if (!File.Exists(Program.wmoDirectory + ModelInstName))
+                        continue;
+
+                    using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+                    {
+                        binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
+                        int nVertices = binaryReader.ReadInt32();
+                        if (nVertices == 0)
+                            continue;
+                    }
+                    ++doodadId;
+
+                    Vector3 position = wmoPosition + (wmoRotation * new Vector3(doodad.Position.X, doodad.Position.Y, doodad.Position.Z));
+
+                    Vector3 rotation;
+                    (new Quaternion(doodad.Rotation.X, doodad.Rotation.Y, doodad.Rotation.Z, doodad.Rotation.W).toRotationMatrix() * wmoRotation).toEulerAnglesXYZ(out rotation.Z, out rotation.X, out rotation.Y);
+
+                    rotation.Z = MathFunctions.toDegrees(rotation.Z);
+                    rotation.X = MathFunctions.toDegrees(rotation.X);
+                    rotation.Y = MathFunctions.toDegrees(rotation.Y);
+
+                    ushort nameSet = 0;     // not used for models
+                    uint uniqueId = VmapFile.GenerateUniqueObjectId(wmo.UniqueId, doodadId);
+                    uint flags = ModelFlags.M2;
+                    if (mapID != originalMapId)
+                        flags |= ModelFlags.ParentSpawn;
+
+                    //write mapID, Flags, NameSet, UniqueId, Pos, Rot, Scale, name
+                    writer.Write(mapID);
+                    writer.Write(flags);
+                    writer.Write(nameSet);
+                    writer.Write(uniqueId);
+                    writer.WriteVector3(position);
+                    writer.WriteVector3(rotation);
+                    writer.Write(doodad.Scale);
+                    writer.Write(ModelInstName.Length);
+                    writer.WriteString(ModelInstName);
+                    if (ModelInstName.Contains("Twilightshammer_Hanginglamp"))
+                    {
+
+                    }
+                    if (dirfileCache != null)
+                    {
+                        ADTOutputCache cacheModelData = new ADTOutputCache();
+                        cacheModelData.Flags = flags & ~ModelFlags.ParentSpawn;
+
+                        MemoryStream stream = new MemoryStream();
+                        BinaryWriter cacheData = new BinaryWriter(stream);
+                        cacheData.Write(nameSet);
+                        cacheData.Write(uniqueId);
+                        cacheData.WriteVector3(position);
+                        cacheData.WriteVector3(rotation);
+                        cacheData.Write(doodad.Scale);
+                        cacheData.Write(ModelInstName.Length);
+                        cacheData.WriteString(ModelInstName);
+
+                        cacheModelData.Data = stream.ToArray();
+                        dirfileCache.Add(cacheModelData);
+                    }
+                }
             }
         }
 
@@ -213,76 +310,76 @@ namespace DataExtractor.Vmap
         ModelHeader header;
         Vector3[] vertices;
         ushort[] indices;
+        AxisAlignedBox bounds;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
     struct ModelHeader
     {
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-        public byte[] id;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-        public byte[] version;
-        public uint nameLength;
-        public uint nameOfs;
-        public uint type;
-        public uint nGlobalSequences;
-        public uint ofsGlobalSequences;
-        public uint nAnimations;
-        public uint ofsAnimations;
-        public uint nAnimationLookup;
-        public uint ofsAnimationLookup;
-        public uint nBones;
-        public uint ofsBones;
-        public uint nKeyBoneLookup;
-        public uint ofsKeyBoneLookup;
-        public uint nVertices;
-        public uint ofsVertices;
-        public uint nViews;
-        public uint nColors;
-        public uint ofsColors;
-        public uint nTextures;
-        public uint ofsTextures;
-        public uint nTransparency;
-        public uint ofsTransparency;
-        public uint nTextureanimations;
-        public uint ofsTextureanimations;
-        public uint nTexReplace;
-        public uint ofsTexReplace;
-        public uint nRenderFlags;
-        public uint ofsRenderFlags;
-        public uint nBoneLookupTable;
-        public uint ofsBoneLookupTable;
-        public uint nTexLookup;
-        public uint ofsTexLookup;
-        public uint nTexUnits;
-        public uint ofsTexUnits;
-        public uint nTransLookup;
-        public uint ofsTransLookup;
-        public uint nTexAnimLookup;
-        public uint ofsTexAnimLookup;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 14)]
-        public float[] floats;
-        public uint nBoundingTriangles;
-        public uint ofsBoundingTriangles;
-        public uint nBoundingVertices;
-        public uint ofsBoundingVertices;
-        public uint nBoundingNormals;
-        public uint ofsBoundingNormals;
-        public uint nAttachments;
-        public uint ofsAttachments;
-        public uint nAttachLookup;
-        public uint ofsAttachLookup;
-        public uint nAttachments_2;
-        public uint ofsAttachments_2;
-        public uint nLights;
-        public uint ofsLights;
-        public uint nCameras;
-        public uint ofsCameras;
-        public uint nCameraLookup;
-        public uint ofsCameraLookup;
-        public uint nRibbonEmitters;
-        public uint ofsRibbonEmitters;
-        public uint nParticleEmitters;
-        public uint ofsParticleEmitters;
+        public uint id { get; set; }
+        public uint version { get; set; }
+        public uint nameLength { get; set; }
+        public uint nameOfs { get; set; }
+        public uint type { get; set; }
+        public uint nGlobalSequences { get; set; }
+        public uint ofsGlobalSequences { get; set; }
+        public uint nAnimations { get; set; }
+        public uint ofsAnimations { get; set; }
+        public uint nAnimationLookup { get; set; }
+        public uint ofsAnimationLookup { get; set; }
+        public uint nBones { get; set; }
+        public uint ofsBones { get; set; }
+        public uint nKeyBoneLookup { get; set; }
+        public uint ofsKeyBoneLookup { get; set; }
+        public uint nVertices { get; set; }
+        public uint ofsVertices { get; set; }
+        public uint nViews { get; set; }
+        public uint nColors { get; set; }
+        public uint ofsColors { get; set; }
+        public uint nTextures { get; set; }
+        public uint ofsTextures { get; set; }
+        public uint nTransparency { get; set; }
+        public uint ofsTransparency { get; set; }
+        public uint nTextureanimations { get; set; }
+        public uint ofsTextureanimations { get; set; }
+        public uint nTexReplace { get; set; }
+        public uint ofsTexReplace { get; set; }
+        public uint nRenderFlags { get; set; }
+        public uint ofsRenderFlags { get; set; }
+        public uint nBoneLookupTable { get; set; }
+        public uint ofsBoneLookupTable { get; set; }
+        public uint nTexLookup { get; set; }
+        public uint ofsTexLookup { get; set; }
+        public uint nTexUnits { get; set; }
+        public uint ofsTexUnits { get; set; }
+        public uint nTransLookup { get; set; }
+        public uint ofsTransLookup { get; set; }
+        public uint nTexAnimLookup { get; set; }
+        public uint ofsTexAnimLookup { get; set; }
+        public AxisAlignedBox boundingBox { get; set; }
+        public float boundingSphereRadius { get; set; }
+        public AxisAlignedBox collisionBox { get; set; }
+        public float collisionSphereRadius { get; set; }
+        public uint nBoundingTriangles { get; set; }
+        public uint ofsBoundingTriangles { get; set; }
+        public uint nBoundingVertices { get; set; }
+        public uint ofsBoundingVertices { get; set; }
+        public uint nBoundingNormals { get; set; }
+        public uint ofsBoundingNormals { get; set; }
+        public uint nAttachments { get; set; }
+        public uint ofsAttachments { get; set; }
+        public uint nAttachLookup { get; set; }
+        public uint ofsAttachLookup { get; set; }
+        public uint nAttachments_2 { get; set; }
+        public uint ofsAttachments_2 { get; set; }
+        public uint nLights { get; set; }
+        public uint ofsLights { get; set; }
+        public uint nCameras { get; set; }
+        public uint ofsCameras { get; set; }
+        public uint nCameraLookup { get; set; }
+        public uint ofsCameraLookup { get; set; }
+        public uint nRibbonEmitters { get; set; }
+        public uint ofsRibbonEmitters { get; set; }
+        public uint nParticleEmitters { get; set; }
+        public uint ofsParticleEmitters { get; set; }
     }
 }

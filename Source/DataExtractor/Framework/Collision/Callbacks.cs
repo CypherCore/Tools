@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System.Collections.Generic;
 using Framework.GameMath;
+using System.Collections.Generic;
 
 namespace Framework.Collision
 {

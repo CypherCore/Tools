@@ -15,12 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.Constants;
+using Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using DataExtractor.Vmap.Collision;
-using Framework.Constants;
-using Framework.GameMath;
 using System.Runtime.InteropServices;
 
 namespace DataExtractor.Vmap
@@ -34,10 +33,10 @@ namespace DataExtractor.Vmap
             dirfileCache = null;
         }
 
-        public bool init(uint map_num, uint tileX, uint tileY, uint originalMapId)
+        public bool init(uint map_num, uint originalMapId)
         {
             if (dirfileCache != null)
-                return initFromCache(map_num, tileX, tileY, originalMapId);
+                return initFromCache(map_num, originalMapId);
 
             MemoryStream stream = Program.cascHandler.ReadFile(Adtfilename);
             if (stream == null)
@@ -51,7 +50,8 @@ namespace DataExtractor.Vmap
             {
                 using (BinaryReader binaryReader = new BinaryReader(stream))
                 {
-                    while (binaryReader.BaseStream.Position < binaryReader.BaseStream.Length)
+                    long fileLength = binaryReader.BaseStream.Length;
+                    while (binaryReader.BaseStream.Position < fileLength)
                     {
                         string fourcc = binaryReader.ReadStringFromChars(4, true);
                         uint size = binaryReader.ReadUInt32();
@@ -73,7 +73,6 @@ namespace DataExtractor.Vmap
                                     string path = binaryReader.ReadCString();
 
                                     ModelInstanceNames.Add(path.GetPlainName());
-
                                     VmapFile.ExtractSingleModel(path);
 
                                     size -= (uint)(path.Length + 1);
@@ -106,13 +105,13 @@ namespace DataExtractor.Vmap
                                     MDDF doodadDef = binaryReader.Read<MDDF>();
                                     if (!Convert.ToBoolean(doodadDef.Flags & 0x40))
                                     {
-                                        Model.Extract(doodadDef, ModelInstanceNames[(int)doodadDef.Id], map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                        Model.Extract(doodadDef, ModelInstanceNames[(int)doodadDef.Id], map_num, originalMapId, binaryWriter, dirfileCache);
                                     }
                                     else
                                     {
                                         string fileName = $"FILE{doodadDef.Id}:X8.xxx";
                                         VmapFile.ExtractSingleModel(fileName);
-                                        Model.Extract(doodadDef, fileName, map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                        Model.Extract(doodadDef, fileName, map_num, originalMapId, binaryWriter, dirfileCache);
                                     }
                                 }
 
@@ -129,13 +128,15 @@ namespace DataExtractor.Vmap
                                     MODF mapObjDef = binaryReader.Read<MODF>();
                                     if (!Convert.ToBoolean(mapObjDef.Flags & 0x8))
                                     {
-                                        WMORoot.Extract(mapObjDef, WmoInstanceNames[(int)mapObjDef.Id], map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                        WMORoot.Extract(mapObjDef, WmoInstanceNames[(int)mapObjDef.Id], false, map_num, originalMapId, binaryWriter, dirfileCache);
+                                        Model.ExtractSet(VmapFile.WmoDoodads[WmoInstanceNames[(int)mapObjDef.Id]], mapObjDef, false, map_num, originalMapId, binaryWriter, dirfileCache);
                                     }
                                     else
                                     {
                                         string fileName = $"FILE{mapObjDef.Id}:8X.xxx";
-                                        VmapFile.ExtractSingleModel(fileName);
-                                        WMORoot.Extract(mapObjDef, fileName, map_num, tileX, tileY, originalMapId, binaryWriter, dirfileCache);
+                                        VmapFile.ExtractSingleWmo(fileName);
+                                        WMORoot.Extract(mapObjDef, fileName, false, map_num, originalMapId, binaryWriter, dirfileCache);
+                                        Model.ExtractSet(VmapFile.WmoDoodads[fileName], mapObjDef, false, map_num, originalMapId, binaryWriter, dirfileCache);
                                     }
                                 }
 
@@ -152,7 +153,7 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        bool initFromCache(uint map_num, uint tileX, uint tileY, uint originalMapId)
+        bool initFromCache(uint map_num, uint originalMapId)
         {
             if (dirfileCache.Empty())
                 return true;
@@ -163,8 +164,6 @@ namespace DataExtractor.Vmap
                 foreach (ADTOutputCache cached in dirfileCache)
                 {
                     binaryWriter.Write(map_num);
-                    binaryWriter.Write(tileX);
-                    binaryWriter.Write(tileY);
                     uint flags = cached.Flags;
                     if (map_num != originalMapId)
                         flags |= ModelFlags.ParentSpawn;

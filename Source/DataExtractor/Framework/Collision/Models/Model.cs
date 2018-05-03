@@ -15,12 +15,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System;
-using System.Text;
-using System.IO;
-using System.Runtime.InteropServices;
-using Framework.GameMath;
 using Framework.Constants;
+using Framework.GameMath;
+using System;
+using System.IO;
 
 namespace Framework.Collision
 {
@@ -39,9 +37,9 @@ namespace Framework.Collision
             name = spawn.name;
         }
 
-        public AxisAlignedBox getBounds() { return iBound; }
+        public AxisAlignedBox GetBounds() { return iBound; }
 
-        public static bool readFromFile(BinaryReader reader, out ModelSpawn spawn)
+        public static bool ReadFromFile(BinaryReader reader, out ModelSpawn spawn)
         {
             spawn = new ModelSpawn();
             spawn.flags = reader.ReadUInt32();
@@ -63,7 +61,7 @@ namespace Framework.Collision
             return true;
         }
 
-        public static void writeToFile(BinaryWriter writer, ModelSpawn spawn)
+        public static void WriteToFile(BinaryWriter writer, ModelSpawn spawn)
         {
             writer.Write(spawn.flags);
             writer.Write(spawn.adtId);
@@ -102,8 +100,8 @@ namespace Framework.Collision
             iInvScale = 1.0f / iScale;
         }
 
-        public void setUnloaded() { iModel = null; }
-        public WorldModel getWorldModel() { return iModel; }
+        public void SetUnloaded() { iModel = null; }
+        public WorldModel GetWorldModel() { return iModel; }
 
         Matrix3 iInvRot;
         float iInvScale;

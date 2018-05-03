@@ -15,11 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.Constants;
+using Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Framework.GameMath;
-using Framework.Constants;
 using System.Runtime.InteropServices;
 
 namespace DataExtractor.Vmap
@@ -46,13 +46,14 @@ namespace DataExtractor.Vmap
 
             using (BinaryReader reader = new BinaryReader(stream))
             {
-                while (reader.BaseStream.Position < reader.BaseStream.Length)
+                long fileLength = reader.BaseStream.Length;
+                while (reader.BaseStream.Position < fileLength)
                 {
-                    string fourcc = reader.ReadStringFromChars(4);
+                    string fourcc = reader.ReadStringFromChars(4, true);
                     uint size = reader.ReadUInt32();
 
                     int nextpos = (int)(reader.BaseStream.Position + size);
-                    if (fourcc == "DHOM") // header
+                    if (fourcc == "MOHD") // header
                     {
                         nTextures = reader.ReadUInt32();
                         nGroups = reader.ReadUInt32();
@@ -73,7 +74,35 @@ namespace DataExtractor.Vmap
                         flags = reader.ReadUInt16();
                         numLod = reader.ReadUInt16();
                     }
-                    else if (fourcc == "DIFG")
+                    else if (fourcc == "MODS")
+                    {
+                        for (var i  = 0; i < size / 32; ++i)
+                            DoodadData.Sets.Add(reader.ReadStruct<MODS>());
+                    }
+                    else if (fourcc == "MODN")
+                    {
+                        DoodadData.Paths = reader.ReadBytes((int)size);
+
+                        using (BinaryReader doodadReader = new BinaryReader(new MemoryStream(DoodadData.Paths)))
+                        {
+                            int index = 0;
+                            long endIndex = doodadReader.BaseStream.Length;
+                            while (doodadReader.BaseStream.Position < endIndex)
+                            {
+                                string path = doodadReader.ReadCString();
+                                if (VmapFile.ExtractSingleModel(path))
+                                    ValidDoodadNames.Add((uint)index);
+
+                                index += path.Length + 1;
+                            }
+                        }
+                    }
+                    else if (fourcc == "MODD")
+                    {
+                        for (var i = 0; i< size / 40; ++i)
+                            DoodadData.Spawns.Add(reader.Read<MODD>());
+                    }
+                    else if (fourcc == "GFID")
                     {
                         for (uint gp = 0; gp < nGroups; ++gp)
                         {
@@ -98,7 +127,7 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        public static void Extract(MODF mapObjDef, string WmoInstName, uint mapID, uint tileX, uint tileY, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
+        public static void Extract(MODF mapObjDef, string WmoInstName, bool isGlobalWmo, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
         {
             // destructible wmo, do not dump. we can handle the vmap for these
             // in dynamic tree (gameobject vmaps)
@@ -119,36 +148,33 @@ namespace DataExtractor.Vmap
                 if (nVertices == 0)
                     return;
 
-                Vector3 position = mapObjDef.Position;
-
-                float x, z;
-                x = position.X;
-                z = position.Z;
-                if (x == 0 && z == 0)
-                {
-                    position.X = 533.33333f * 32;
-                    position.Z = 533.33333f * 32;
-                }
-
-                position = fixCoords(position);
+                Vector3 position = fixCoords(mapObjDef.Position);
                 AxisAlignedBox bounds = new AxisAlignedBox(fixCoords(mapObjDef.Bounds.Lo), fixCoords(mapObjDef.Bounds.Hi));
+
+                if (isGlobalWmo)
+                {
+                    position += new Vector3(533.33333f * 32, 533.33333f * 32, 0.0f);
+                    bounds += new Vector3(533.33333f * 32, 533.33333f * 32, 0.0f);
+                }
 
                 float scale = 1.0f;
                 if (Convert.ToBoolean(mapObjDef.Flags & 0x4))
                     scale = mapObjDef.Scale / 1024.0f;
+                uint uniqueId = VmapFile.GenerateUniqueObjectId(mapObjDef.UniqueId, 0);
                 uint flags = ModelFlags.HasBound;
-                if (tileX == 65 && tileY == 65)
-                    flags |= ModelFlags.WorldSpawn;
                 if (mapID != originalMapId)
                     flags |= ModelFlags.ParentSpawn;
 
-                //write mapID, tileX, tileY, Flags, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+                if (uniqueId == 198660)
+                {
+
+                }
+
+                //write mapID, Flags, ID, Pos, Rot, Scale, Bound_lo, Bound_hi, name
                 writer.Write(mapID);
-                writer.Write(tileX);
-                writer.Write(tileY);
                 writer.Write(flags);
                 writer.Write(mapObjDef.NameSet);
-                writer.Write(mapObjDef.UniqueId);
+                writer.Write(uniqueId);
                 writer.WriteVector3(position);
                 writer.WriteVector3(mapObjDef.Rotation);
                 writer.Write(scale);
@@ -165,7 +191,7 @@ namespace DataExtractor.Vmap
                     MemoryStream stream = new MemoryStream();
                     BinaryWriter cacheData = new BinaryWriter(stream);
                     cacheData.Write(mapObjDef.NameSet);
-                    cacheData.Write(mapObjDef.UniqueId);
+                    cacheData.Write(uniqueId);
                     cacheData.WriteVector3(position);
                     cacheData.WriteVector3(mapObjDef.Rotation);
                     cacheData.Write(scale);
@@ -196,6 +222,8 @@ namespace DataExtractor.Vmap
         public ushort flags;
         ushort numLod;
 
+        public WMODoodadData DoodadData = new WMODoodadData();
+        public List<uint> ValidDoodadNames = new List<uint>();
         public List<uint> groupFileDataIDs = new List<uint>();
     }
 
@@ -212,7 +240,8 @@ namespace DataExtractor.Vmap
 
             using (BinaryReader reader = new BinaryReader(stream))
             {
-                while (reader.BaseStream.Position < reader.BaseStream.Length)
+                long fileLength = reader.BaseStream.Length;
+                while (reader.BaseStream.Position < fileLength)
                 {
                     string fourcc = reader.ReadStringFromChars(4, true);
                     uint size = reader.ReadUInt32();
@@ -287,6 +316,11 @@ namespace DataExtractor.Vmap
 
                         for (var i = 0; i < size / 2; ++i)
                             MOBA[i] = reader.ReadUInt16();
+                    }
+                    else if (fourcc == "MODR")
+                    {
+                        for (var i = 0; i < size / 2; ++i)
+                            DoodadReferences.Add(reader.Read<ushort>());
                     }
                     else if (fourcc == "MLIQ")
                     {
@@ -540,6 +574,8 @@ namespace DataExtractor.Vmap
         int nTriangles; // number when loaded
         uint liquflags;
 
+        public List<ushort> DoodadReferences = new List<ushort>();
+
         struct WMOLiquidVert
         {
             public ushort unk1 { get; set; }
@@ -559,5 +595,32 @@ namespace DataExtractor.Vmap
         public float pos_y { get; set; }
         public float pos_z { get; set; }
         public short material { get; set; }
+    }
+
+    class WMODoodadData
+    {
+        public List<MODS> Sets = new List<MODS>();
+        public byte[] Paths;
+        public List<MODD> Spawns = new List<MODD>();
+        public List<ushort> References = new List<ushort>();
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct MODS
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 20)]
+        public string Name;
+        public uint StartIndex;     // index of first doodad instance in this set
+        public uint Count;          // number of doodad instances in this set
+        public uint _pad;
+    }
+
+    struct MODD
+    {
+        public uint NameIndex { get; set; }
+        public Vector3 Position { get; set; }
+        public Vector4 Rotation { get; set; }
+        public float Scale { get; set; }
+        public uint Color { get; set; }
     }
 }

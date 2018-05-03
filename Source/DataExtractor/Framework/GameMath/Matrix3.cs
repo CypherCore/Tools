@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * Copyright (C) 2012-2018 CypherCore <http://github.com/CypherCore>
  * Copyright (C) 2003-2004  Eran Kampf	eran@ekampf.com	http://www.ekampf.com
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -95,6 +95,36 @@ namespace Framework.GameMath
             _m11 = m.M11; _m12 = m.M12; _m13 = m.M13;
             _m21 = m.M21; _m22 = m.M22; _m23 = m.M23;
             _m31 = m.M31; _m32 = m.M32; _m33 = m.M33;
+        }
+        public Matrix3(Quaternion _q)
+        {
+            // Implementation from Watt and Watt, pg 362
+            // See also http://www.flipcode.com/documents/matrfaq.html#Q54
+            Quaternion q = _q;
+            q.unitize();
+            float xx = 2.0f * q.X * q.X;
+            float xy = 2.0f * q.X * q.Y;
+            float xz = 2.0f * q.X * q.Z;
+            float xw = 2.0f * q.X * q.W;
+
+            float yy = 2.0f * q.Y * q.Y;
+            float yz = 2.0f * q.Y * q.Z;
+            float yw = 2.0f * q.Y * q.W;
+
+            float zz = 2.0f * q.Z * q.Z;
+            float zw = 2.0f * q.Z * q.W;
+
+            _m11 = 1.0f - yy - zz;
+            _m12 = xy - zw;
+            _m13 = xz + yw;
+
+            _m21 = xy + zw;
+            _m22 = 1.0f - xx - zz;
+            _m23 = yz - xw;
+
+            _m31 = xz - yw;
+            _m32 = yz + xw;
+            _m33 = 1.0f - xx - yy;
         }
         #endregion
 
@@ -524,7 +554,27 @@ namespace Framework.GameMath
             return t;
         }
 
-        public static Matrix3 fromEulerAnglesXYZ(float fYAngle, float fPAngle,                                  float fRAngle)
+        public static Matrix3 fromEulerAnglesZYX(float fYAngle, float fPAngle, float fRAngle)
+        {
+            float fCos, fSin;
+
+            fCos = MathF.Cos(fYAngle);
+            fSin = MathF.Sin(fYAngle);
+            Matrix3 kZMat = new Matrix3(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
+
+            fCos = MathF.Cos(fPAngle);
+            fSin = MathF.Sin(fPAngle);
+            Matrix3 kYMat = new Matrix3(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
+
+            fCos = MathF.Cos(fRAngle);
+            fSin = MathF.Sin(fRAngle);
+            Matrix3 kXMat = new Matrix3(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
+
+            return (kZMat * (kYMat * kXMat));
+        }
+
+        public static Matrix3 fromEulerAnglesXYZ(float fYAngle, float fPAngle,
+                                  float fRAngle)
         {
             float fCos, fSin;
 
@@ -543,23 +593,38 @@ namespace Framework.GameMath
             return kXMat * (kYMat * kZMat);
         }
 
-        public static Matrix3 fromEulerAnglesZYX(float fYAngle, float fPAngle, float fRAngle)
+        public bool toEulerAnglesXYZ(out float rfXAngle, out float rfYAngle, out float rfZAngle)
         {
-            float fCos, fSin;
+            // rot =  cy*cz          -cy*sz           sy
+            //        cz*sx*sy+cx*sz  cx*cz-sx*sy*sz -cy*sx
+            //       -cx*cz*sy+sx*sz  cz*sx+cx*sy*sz  cx*cy
 
-            fCos = MathF.Cos(fYAngle);
-            fSin = MathF.Sin(fYAngle);
-            Matrix3 kZMat = new Matrix3(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
-
-            fCos = MathF.Cos(fPAngle);
-            fSin = MathF.Sin(fPAngle);
-            Matrix3 kYMat = new Matrix3(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
-
-            fCos = MathF.Cos(fRAngle);
-            fSin = MathF.Sin(fRAngle);
-            Matrix3 kXMat = new Matrix3(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
-
-            return (kZMat * (kYMat * kXMat));
+            if (this[0, 2] < 1.0f)
+            {
+                if (this[0, 2] > -1.0f)
+                {
+                    rfXAngle = (float)Math.Atan2(-this[1, 2], this[2, 2]);
+                    rfYAngle = (float)Math.Sin(this[0, 2]);
+                    rfZAngle = (float)Math.Atan2(-this[0, 1], this[0, 0]);
+                    return true;
+                }
+                else
+                {
+                    // WARNING.  Not unique.  XA - ZA = -atan2(r10,r11)
+                    rfXAngle = -(float)Math.Atan2(this[1, 0], this[1, 1]);
+                    rfYAngle = -MathFunctions.PiOver2;
+                    rfZAngle = 0.0f;
+                    return false;
+                }
+            }
+            else
+            {
+                // WARNING.  Not unique.  XAngle + ZAngle = atan2(r10,r11)
+                rfXAngle = (float)Math.Atan2(this[1, 0], this[1, 1]);
+                rfYAngle = MathFunctions.PiOver2;
+                rfZAngle = 0.0f;
+                return false;
+            }
         }
 
         public Matrix3 inverse(float fTolerance = (float)1e-06)
@@ -673,7 +738,7 @@ namespace Framework.GameMath
         /// Transposes this matrix.
         /// </summary>
         public void Transpose()
-        {            
+        {
             MathFunctions.Swap<float>(ref _m12, ref _m21);
             MathFunctions.Swap<float>(ref _m13, ref _m31);
             MathFunctions.Swap<float>(ref _m23, ref _m32);
@@ -712,7 +777,7 @@ namespace Framework.GameMath
         /// <returns>A new <see cref="Matrix3"/> instance containing the sum.</returns>
         public static Matrix3 operator +(Matrix3 left, Matrix3 right)
         {
-            return Matrix3.Add(left, right); ;
+            return Matrix3.Add(left, right);
         }
         /// <summary>
         /// Adds a matrix and a scalar.
@@ -742,7 +807,7 @@ namespace Framework.GameMath
         /// <returns>A new <see cref="Matrix3"/> instance containing the difference.</returns>
         public static Matrix3 operator -(Matrix3 left, Matrix3 right)
         {
-            return Matrix3.Subtract(left, right); ;
+            return Matrix3.Subtract(left, right);
         }
         /// <summary>
         /// Subtracts a scalar from a matrix.
@@ -762,7 +827,7 @@ namespace Framework.GameMath
         /// <returns>A new <see cref="Matrix3"/> instance containing the result.</returns>
         public static Matrix3 operator *(Matrix3 left, Matrix3 right)
         {
-            return Matrix3.Multiply(left, right); ;
+            return Matrix3.Multiply(left, right);
         }
         /// <summary>
         /// Transforms a given vector by a matrix.
@@ -777,6 +842,50 @@ namespace Framework.GameMath
         public static Vector3 operator *(Vector3 rkPoint, Matrix3 rkMatrix)
         {
             return (Matrix3.Transpose(rkMatrix) * rkPoint);
+        }
+        #endregion
+
+        #region Indexing Operators
+        /// <summary>
+        /// Indexer allowing to access the matrix elements by an index
+        /// where index = 2*row + column.
+        /// </summary>
+        public unsafe float this[int index]
+        {
+            get
+            {
+                if (index < 0 || index >= 9)
+                    throw new IndexOutOfRangeException("Invalid matrix index!");
+
+                fixed (float* f = &_m11)
+                {
+                    return *(f + index);
+                }
+            }
+            set
+            {
+                if (index < 0 || index >= 9)
+                    throw new IndexOutOfRangeException("Invalid matrix index!");
+
+                fixed (float* f = &_m11)
+                {
+                    *(f + index) = value;
+                }
+            }
+        }
+        /// <summary>
+        /// Indexer allowing to access the matrix elements by row and column.
+        /// </summary>
+        public float this[int row, int column]
+        {
+            get
+            {
+                return this[row * 3 + column];
+            }
+            set
+            {
+                this[row * 3 + column] = value;
+            }
         }
         #endregion
     }

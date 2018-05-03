@@ -96,6 +96,16 @@ public static class MathFunctions
         return degrees * (2.0f * PI / 360.0f);
     }
 
+    public static float toRadians(float deg)
+    {
+        return deg * PI / 180.0f;
+    }
+
+    public static float toDegrees(float rad)
+    {
+        return rad * 180.0f / PI;
+    }
+
     #region Fuzzy
     public static bool fuzzyEq(double a, double b)
     {

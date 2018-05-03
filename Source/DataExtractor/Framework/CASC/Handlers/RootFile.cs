@@ -15,11 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.CASC.Constants;
+using Framework.CASC.Structures;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Framework.CASC.Constants;
-using Framework.CASC.Structures;
 
 namespace Framework.CASC.Handlers
 {
@@ -37,7 +37,8 @@ namespace Framework.CASC.Handlers
             var list = new List<RootEntry>();
             var blteEntry = new BinaryReader(DataFile.LoadBLTEEntry(indexEntry, file.readStream));
 
-            while (blteEntry.BaseStream.Position < blteEntry.BaseStream.Length)
+            long fileLength = blteEntry.BaseStream.Length;
+            while (blteEntry.BaseStream.Position < fileLength)
             {
                 var entries = new RootEntry[blteEntry.ReadInt32()];
 

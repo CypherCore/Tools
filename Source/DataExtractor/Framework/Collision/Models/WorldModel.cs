@@ -15,11 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using Framework.Constants;
+using Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Framework.GameMath;
-using Framework.Constants;
 
 namespace Framework.Collision
 {
@@ -89,7 +89,7 @@ namespace Framework.Collision
                 sizeof(uint) + (iFlags != null ? ((iTilesX + 1) * (iTilesY + 1) * sizeof(float) + iTilesX * iTilesY) : sizeof(float));
         }
 
-        public bool writeToFile(BinaryWriter writer)
+        public bool WriteToFile(BinaryWriter writer)
         {
             writer.Write(iTilesX);
             writer.Write(iTilesY);
@@ -115,7 +115,7 @@ namespace Framework.Collision
             return true;
         }
 
-        public static WmoLiquid readFromFile(BinaryReader reader)
+        public static WmoLiquid ReadFromFile(BinaryReader reader)
         {
             WmoLiquid liquid = new WmoLiquid();
 
@@ -145,7 +145,7 @@ namespace Framework.Collision
             return liquid;
         }
 
-        public void getPosInfo(out uint tilesX, out uint tilesY, out Vector3 corner)
+        public void GetPosInfo(out uint tilesX, out uint tilesY, out Vector3 corner)
         {
             tilesX = iTilesX;
             tilesY = iTilesY;
@@ -176,7 +176,7 @@ namespace Framework.Collision
             iLiquid = null;
         }
 
-        public void setMeshData(List<Vector3> vert, List<MeshTriangle> tri)
+        public void SetMeshData(List<Vector3> vert, List<MeshTriangle> tri)
         {
             vertices = vert;
             triangles = tri;
@@ -184,13 +184,13 @@ namespace Framework.Collision
             meshTree.build(triangles, bFunc.Invoke);
         }
 
-        public void setLiquidData(WmoLiquid liquid)
+        public void SetLiquidData(WmoLiquid liquid)
         {
             iLiquid = liquid;
             liquid = null;
         }
 
-        public void writeToFile(BinaryWriter writer)
+        public void WriteToFile(BinaryWriter writer)
         {
             int count;
 
@@ -235,10 +235,10 @@ namespace Framework.Collision
             }
 
             writer.Write(iLiquid.GetFileSize());
-            iLiquid.writeToFile(writer);
+            iLiquid.WriteToFile(writer);
         }
 
-        public bool readFromFile(BinaryReader reader)
+        public bool ReadFromFile(BinaryReader reader)
         {
             uint chunkSize = 0;
             uint count = 0;
@@ -282,12 +282,12 @@ namespace Framework.Collision
                 return false;
             chunkSize = reader.ReadUInt32();
             if (chunkSize > 0)
-                iLiquid = WmoLiquid.readFromFile(reader);
+                iLiquid = WmoLiquid.ReadFromFile(reader);
 
             return true;
         }
 
-        public void getMeshData(out List<Vector3> outVertices, out List<MeshTriangle> outTriangles, out WmoLiquid liquid)
+        public void GetMeshData(out List<Vector3> outVertices, out List<MeshTriangle> outTriangles, out WmoLiquid liquid)
         {
             outVertices = vertices;
             outTriangles = triangles;
@@ -307,8 +307,8 @@ namespace Framework.Collision
 
     struct BoundsTrait
     {
-        public static void getBounds(GroupModel obj, out AxisAlignedBox box) { box = obj.GetBound(); }
-        public static void getBounds(ModelSpawn obj, out AxisAlignedBox box) { box = obj.getBounds(); }
+        public static void GetBounds(GroupModel obj, out AxisAlignedBox box) { box = obj.GetBound(); }
+        public static void GetBounds(ModelSpawn obj, out AxisAlignedBox box) { box = obj.GetBounds(); }
     }
 
     public class WorldModel
@@ -321,7 +321,7 @@ namespace Framework.Collision
         public void setGroupModels(List<GroupModel> models)
         {
             groupModels = models;
-            groupTree.build(groupModels, BoundsTrait.getBounds, 1);
+            groupTree.build(groupModels, BoundsTrait.GetBounds, 1);
         }
 
         public void writeFile(string filename)
@@ -339,7 +339,7 @@ namespace Framework.Collision
                     writer.WriteString("GMOD");
                     writer.Write(groupModels.Count);
                     for (int i = 0; i < groupModels.Count; ++i)
-                        groupModels[i].writeToFile(writer);
+                        groupModels[i].WriteToFile(writer);
 
                     // write group BIH
                     writer.WriteString("GBIH");
@@ -373,7 +373,7 @@ namespace Framework.Collision
                 for (var i = 0; i < count; ++i)
                 {
                     GroupModel group = new GroupModel();
-                    group.readFromFile(binaryReader);
+                    group.ReadFromFile(binaryReader);
                     groupModels.Add(group);
                 }
 
