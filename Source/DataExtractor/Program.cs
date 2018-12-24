@@ -51,8 +51,6 @@ namespace DataExtractor
 
             Console.ForegroundColor = ConsoleColor.Green;
 
-            CheckFiles.Start(BaseDirectory);
-
             uint localeMask = 0;
 
             CASCConfig config = CASCConfig.LoadLocalStorageConfig(BaseDirectory);
