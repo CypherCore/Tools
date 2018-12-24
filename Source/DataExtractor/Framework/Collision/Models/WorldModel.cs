@@ -15,13 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Constants;
-using Framework.GameMath;
+using DataExtractor.Framework.Constants;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Framework.Collision
+namespace DataExtractor.Framework.Collision
 {
     public struct MeshTriangle
     {
@@ -351,7 +351,11 @@ namespace Framework.Collision
         public bool readFile(string filename)
         {
             if (!File.Exists(filename))
-                return false;
+            {
+                filename = filename + ".vmo";
+                if (!File.Exists(filename))
+                    return false;
+            }
 
             using (BinaryReader binaryReader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {

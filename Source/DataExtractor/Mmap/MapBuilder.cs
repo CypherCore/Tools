@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Collision;
-using Framework.Constants;
+using DataExtractor.Framework.Collision;
+using DataExtractor.Framework.Constants;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -30,14 +30,15 @@ namespace DataExtractor.Mmap
 
     class MapBuilder
     {
-        public MapBuilder(VMapManager2 vm)
+        public MapBuilder(VMapManager2 vm, bool debugMaps)
         {
             _vmapManager = vm;
+            _debugMaps = debugMaps;
 
             m_maxWalkableAngle = 70.0f;
 
             m_terrainBuilder = new TerrainBuilder(vm);
-            m_rcContext = new rcContext(false);
+            m_rcContext = new rcContext();
 
             discoverTiles();
         }
@@ -46,7 +47,7 @@ namespace DataExtractor.Mmap
         {
             uint mapID, tileX, tileY, tileID, count = 0;
 
-            Console.WriteLine("Discovering maps... ");
+            Console.Write("Discovering maps... ");
             string[] files = Directory.GetFiles("maps").Select(Path.GetFileName).ToArray();
             for (uint i = 0; i < files.Length; ++i)
             {
@@ -68,14 +69,20 @@ namespace DataExtractor.Mmap
                     count++;
                 }
             }
-            Console.WriteLine($"found {count}");
+            Console.Write($" found {count}\n");
 
             count = 0;
-            Console.WriteLine("Discovering tiles... ");
+            Console.Write("Discovering tiles... ");
             foreach (var mapTile in m_tiles)
             {
                 var tiles = mapTile.m_tiles;
                 mapID = mapTile.m_mapId;
+
+                if (mapID == 720)
+                {
+
+                }
+
 
                 files = Directory.GetFiles("vmaps", $"{mapID:D4}_*.vmtile").Select(Path.GetFileName).ToArray();
                 for (int i = 0; i < files.Length; ++i)
@@ -85,10 +92,11 @@ namespace DataExtractor.Mmap
                     tileID = StaticMapTree.PackTileID(tileY, tileX);
 
                     tiles.Add(tileID);
+
                     count++;
                 }
 
-                files = Directory.GetFiles("maps", $"{mapID:D4}*").Select(Path.GetFileName).ToArray();
+                files = Directory.GetFiles("maps", $"{mapID:D4}_*").Select(Path.GetFileName).ToArray();
                 for (uint i = 0; i < files.Length; ++i)
                 {
                     tileY = uint.Parse(files[i].Substring(5, 2));
@@ -98,10 +106,23 @@ namespace DataExtractor.Mmap
                     if (tiles.Add(tileID))
                         count++;
                 }
-            }
-            Console.WriteLine($"found {count}.\n");
 
-            Interlocked.Add(ref m_totalTiles, (int)count);
+                // make sure we process maps which don't have tiles
+                if (tiles.Empty())
+                {
+                    // convert coord bounds to grid bounds
+                    getGridBounds(mapID, out uint minX, out uint minY, out uint maxX, out uint maxY);
+
+                    // add all tiles within bounds to tile list.
+                    for (uint i = minX; i <= maxX; ++i)
+                        for (uint j = minY; j <= maxY; ++j)
+                            if (tiles.Add(StaticMapTree.PackTileID(i, j)))
+                                count++;
+                }
+            }
+
+            Console.Write($"found {count}\n");
+            Console.Write("\n");
         }
 
         SortedSet<uint> getTileList(uint mapID)
@@ -139,15 +160,15 @@ namespace DataExtractor.Mmap
             // get the coord bounds of the model data
             if (meshData.solidVerts.Count != 0 && meshData.liquidVerts.Count != 0)
             {
-                rcCalcBounds(meshData.solidVerts.ToArray(), meshData.solidVerts.Count / 3, bmin, bmax);
-                rcCalcBounds(meshData.liquidVerts.ToArray(), meshData.liquidVerts.Count / 3, lmin, lmax);
+                rcCalcBounds(meshData.solidVerts.ToArray(), meshData.solidVerts.Count, bmin, bmax);
+                rcCalcBounds(meshData.liquidVerts.ToArray(), meshData.liquidVerts.Count, lmin, lmax);
                 rcVmin(bmin, lmin);
                 rcVmax(bmax, lmax);
             }
             else if (meshData.solidVerts.Count != 0)
-                rcCalcBounds(meshData.solidVerts.ToArray(), meshData.solidVerts.Count / 3, bmin, bmax);
+                rcCalcBounds(meshData.solidVerts.ToArray(), meshData.solidVerts.Count, bmin, bmax);
             else
-                rcCalcBounds(meshData.liquidVerts.ToArray(), meshData.liquidVerts.Count / 3, lmin, lmax);
+                rcCalcBounds(meshData.liquidVerts.ToArray(), meshData.liquidVerts.Count, lmin, lmax);
 
             // convert coord bounds to grid bounds
             maxX = (uint)(32 - bmin[0] / SharedConst.GRID_SIZE);
@@ -156,19 +177,73 @@ namespace DataExtractor.Mmap
             minY = (uint)(32 - bmax[2] / SharedConst.GRID_SIZE);
         }
 
-        public void buildAllMaps()
+        void WorkerThread()
         {
+            while (true)
+            {
+                _queue.WaitAndPop(out uint mapId);
+
+                if (_cancelationToken)
+                    return;
+
+                buildMap(mapId);
+            }
+        }
+
+        public void buildAllMaps(int threads = 4)
+        {
+            Console.WriteLine($"Using {threads} threads to extract mmaps\n");
+
+            for (int i = 0; i < threads; ++i)
+            {
+                var thread = new Thread(WorkerThread);
+                thread.Start();
+                _workerThreads.Add(thread);
+            }
+
             m_tiles = m_tiles.OrderByDescending(a => a.m_tiles.Count).ToList();
-            System.Threading.Tasks.Parallel.ForEach(m_tiles, mapTile =>
+
+            foreach (var mapTile in m_tiles)
             {
                 uint mapId = mapTile.m_mapId;
                 if (!shouldSkipMap(mapId))
-                    buildMap(mapId);
-            });
+                {
+                    if (threads > 0)
+                        _queue.Push(mapId);
+                    else
+                        buildMap(mapId);
+
+                }
+            }
+
+            while (!_queue.Empty())
+            {
+                Thread.Sleep(1000);
+            }
+
+            _cancelationToken = true;
+
+            _queue.Cancel();
+
+            foreach (var thread in _workerThreads)
+            {
+                thread.Join();
+            }
         }
 
-        void buildMap(uint mapID)
+        private static readonly object _lock = new object();
+
+        public void buildMap(uint mapID)
         {
+            int cursorLeft;
+            int cursorTop;
+            lock (_lock)
+            {
+                cursorLeft = Console.CursorLeft;
+                cursorTop = Console.CursorTop;
+                Console.WriteLine($"[Map: {mapID:D4} - 0%]");
+            }
+
             var tiles = getTileList(mapID);
 
             // make sure we process maps which don't have tiles
@@ -184,10 +259,7 @@ namespace DataExtractor.Mmap
                     {
                         uint packTileId = StaticMapTree.PackTileID(i, j);
                         if (!tiles.Contains(packTileId))
-                        {
                             tiles.Add(packTileId);
-                            ++m_totalTiles;
-                        }
                     }
                 }
             }
@@ -199,33 +271,45 @@ namespace DataExtractor.Mmap
                 buildNavMesh(mapID, out navMesh);
                 if (navMesh == null)
                 {
-                    Console.WriteLine($"[Map {mapID:D4}] Failed creating navmesh!");
-                    m_totalTilesProcessed += tiles.Count;
+                    lock (_lock)
+                    {
+                        Console.SetCursorPosition(cursorLeft, cursorTop);
+                        Console.Write($"[Map: {mapID:D4}] - Failed creating navmesh!");
+                    }
                     return;
                 }
 
                 // now start building mmtiles for each tile
-                Console.WriteLine($"[Map {mapID:D4}] We have {tiles.Count} tiles.                          ");
-                foreach (var it in tiles)
+                int i = 0;
+                foreach (var tileId in tiles)
                 {
                     // unpack tile coords
-                    StaticMapTree.UnpackTileID(it, out uint tileX, out uint tileY);
+                    StaticMapTree.UnpackTileID(tileId, out uint tileX, out uint tileY);
 
-                    ++m_totalTilesProcessed;
-                    if (shouldSkipTile(mapID, tileX, tileY))
-                        continue;
+                    if (!shouldSkipTile(mapID, tileX, tileY))
+                    {
+                        lock (_lock)
+                        {
+                            Console.SetCursorPosition(cursorLeft, cursorTop);
+                            Console.Write($"[Map: {mapID:D4} - {i * 100 / tiles.Count}%] - Building tile [{tileX:D2},{tileY:D2}]");
+                        }
 
-                    buildTile(mapID, tileX, tileY, navMesh);
+                        buildTile(mapID, tileX, tileY, navMesh);
+                    }
+
+                    ++i;
                 }
             }
 
-            Console.WriteLine($"[Map {mapID:D4}] Complete!");
+            lock (_lock)
+            {
+                Console.SetCursorPosition(cursorLeft, cursorTop);
+                Console.WriteLine($"[Map: {mapID:D4}] - Done!");
+            }
         }
 
         void buildTile(uint mapID, uint tileX, uint tileY, dtNavMesh navMesh)
         {
-            Console.WriteLine($"{m_totalTilesProcessed * 100 / m_totalTiles}% [Map {mapID:D4}] Building tile [{tileX:D2},{tileY:D2}]]");
-
             MeshData meshData = new MeshData();
 
             // get heightmap data
@@ -243,15 +327,15 @@ namespace DataExtractor.Mmap
             TerrainBuilder.cleanVertices(meshData.liquidVerts, meshData.liquidTris);
 
             // gather all mesh data for final data check, and bounds calculation
-            float[] allVerts = new float[meshData.liquidVerts.Count + meshData.solidVerts.Count];
-            Array.Copy(meshData.liquidVerts.ToArray(), allVerts, meshData.liquidVerts.Count);
-            Array.Copy(meshData.solidVerts.ToArray(), 0, allVerts, meshData.liquidVerts.Count, meshData.solidVerts.Count);
+            List<float> allVerts = new List<float>();
+            allVerts.AddRange(meshData.liquidVerts);
+            allVerts.AddRange(meshData.solidVerts);
 
-            if (allVerts.Length == 0)
+            if (allVerts.Count == 0)
                 return;
 
             // get bounds of current tile
-            getTileBounds(tileX, tileY, allVerts, allVerts.Length / 3, out float[] bmin, out float[] bmax);
+            getTileBounds(tileX, tileY, allVerts.ToArray(), allVerts.Count / 3, out float[] bmin, out float[] bmax);
 
             m_terrainBuilder.loadOffMeshConnections(mapID, tileX, tileY, meshData, null);
 
@@ -274,7 +358,7 @@ namespace DataExtractor.Mmap
             //if (tileBits < 1) tileBits = 1;                                     // need at least one bit!
             //int polyBits = sizeof(dtPolyRef)*8 - SALT_MIN_BITS - tileBits;
 
-            int polyBits = (int)DT_POLY_BITS;
+            int polyBits = SharedConst.DT_POLY_BITS;
 
             int maxTiles = tiles.Count;
             int maxPolysPerTile = 1 << polyBits;
@@ -313,34 +397,30 @@ namespace DataExtractor.Mmap
             navMeshParams.maxPolys = maxPolysPerTile;
 
             navMesh = new dtNavMesh();
-            Console.WriteLine($"[Map {mapID:D4}] Creating navMesh...");
             if (dtStatusFailed(navMesh.init(navMeshParams)))
             {
-                Console.WriteLine($"[Map {mapID:D4}] Failed creating navmesh!");
+                Console.WriteLine($"[Map: {mapID:D4}] Failed creating navmesh!");
                 return;
             }
 
-            string fileName = $"mmaps/{mapID:D4}.mmap";
+            string fileName = $"mmaps_new/{mapID:D4}.mmap";
             using (BinaryWriter writer = new BinaryWriter(File.Open(fileName, FileMode.Create, FileAccess.Write)))
             {
                 // now that we know navMesh params are valid, we can write them to file
-                writer.Write(navMeshParams.orig[0]);
-                writer.Write(navMeshParams.orig[1]);
-                writer.Write(navMeshParams.orig[2]);
-                writer.Write(navMeshParams.tileWidth);
-                writer.Write(navMeshParams.tileHeight);
-                writer.Write(navMeshParams.maxTiles);
-                writer.Write(navMeshParams.maxPolys);
+                writer.Write(bmin[0]);
+                writer.Write(bmin[1]);
+                writer.Write(bmin[2]);
+                writer.Write(SharedConst.GRID_SIZE);
+                writer.Write(SharedConst.GRID_SIZE);
+                writer.Write(maxTiles);
+                writer.Write(maxPolysPerTile);
             }
         }
 
         void buildMoveMapTile(uint mapID, uint tileX, uint tileY, MeshData meshData, float[] bmin, float[] bmax, dtNavMesh navMesh)
         {
             // console output
-            string tileString = $"[Map {mapID:D4}] [{tileX:D2},{tileY:D2}]: ";
-            Console.WriteLine($"{tileString} Building movemap tiles...");
-
-            Tile iv = new Tile();
+            string tileString = $"[Map: {mapID:D4}] [{tileX:D2},{tileY:D2}]: ";
 
             float[] tVerts = meshData.solidVerts.ToArray();
             int tVertCount = meshData.solidVerts.Count / 3;
@@ -364,11 +444,13 @@ namespace DataExtractor.Mmap
             int TILES_PER_MAP = VERTEX_PER_MAP / VERTEX_PER_TILE;
 
             rcConfig config = new rcConfig();
+            for (var i = 0; i < 3; ++i)
+            {
+                config.bmin[i] = bmin[i];
+                config.bmax[i] = bmax[i];
+            }
 
-            rcVcopy(config.bmin, bmin);
-            rcVcopy(config.bmax, bmax);
-
-            config.maxVertsPerPoly = DT_VERTS_PER_POLYGON;
+            config.maxVertsPerPoly = SharedConst.DT_VERTS_PER_POLYGON;
             config.cs = BASE_UNIT_DIM;
             config.ch = BASE_UNIT_DIM;
             config.walkableSlopeAngle = m_maxWalkableAngle;
@@ -380,14 +462,17 @@ namespace DataExtractor.Mmap
             // a value >= 3|6 allows npcs to walk over some fences
             // a value >= 4|8 allows npcs to walk over all fences
             config.walkableClimb = 8;// m_bigBaseUnit ? 4 : 8;
-            config.minRegionArea = dtSqr(60);
-            config.mergeRegionArea = dtSqr(50);
+            config.minRegionArea = (60 * 60);
+            config.mergeRegionArea = (50 * 50);
             config.maxSimplificationError = 1.8f;           // eliminates most jagged edges (tiny polygons)
             config.detailSampleDist = config.cs * 64;
             config.detailSampleMaxError = config.ch * 2;
 
             // this sets the dimensions of the heightfield - should maybe happen before border padding
-            rcCalcGridSize(config.bmin, config.bmax, config.cs, out config.width, out config.height);
+            int width, height;
+            rcCalcGridSize(config.bmin, config.bmax, config.cs, out width, out height);
+            config.width = width;
+            config.height = height;
 
             // allocate subregions : tiles
             Tile[] tiles = new Tile[TILES_PER_MAP * TILES_PER_MAP];
@@ -411,6 +496,7 @@ namespace DataExtractor.Mmap
                     // Calculate the per tile bounding box.
                     tileCfg.bmin[0] = config.bmin[0] + (float)(x * config.tileSize - config.borderSize) * config.cs;
                     tileCfg.bmin[2] = config.bmin[2] + (float)(y * config.tileSize - config.borderSize) * config.cs;
+
                     tileCfg.bmax[0] = config.bmin[0] + (float)((x + 1) * config.tileSize + config.borderSize) * config.cs;
                     tileCfg.bmax[2] = config.bmin[2] + (float)((y + 1) * config.tileSize + config.borderSize) * config.cs;
 
@@ -418,7 +504,7 @@ namespace DataExtractor.Mmap
                     tile.solid = new rcHeightfield();
                     if (!rcCreateHeightfield(m_rcContext, tile.solid, tileCfg.width, tileCfg.height, tileCfg.bmin, tileCfg.bmax, tileCfg.cs, tileCfg.ch))
                     {
-                        Console.WriteLine($"{tileString} Failed building heightfield!            ");
+                        //Console.WriteLine($"{tileString} Failed building heightfield!            ");
                         continue;
                     }
 
@@ -440,33 +526,33 @@ namespace DataExtractor.Mmap
                     tile.chf = new rcCompactHeightfield();
                     if (!rcBuildCompactHeightfield(m_rcContext, tileCfg.walkableHeight, tileCfg.walkableClimb, tile.solid, tile.chf))
                     {
-                        Console.WriteLine($"{tileString} Failed compacting heightfield!");
+                        //Console.WriteLine($"{tileString} Failed compacting heightfield!");
                         continue;
                     }
 
                     // build polymesh intermediates
                     if (!rcErodeWalkableArea(m_rcContext, config.walkableRadius, tile.chf))
                     {
-                        Console.WriteLine($"{tileString} Failed eroding area!");
+                        //Console.WriteLine($"{tileString} Failed eroding area!");
                         continue;
                     }
 
                     if (!rcBuildDistanceField(m_rcContext, tile.chf))
                     {
-                        Console.WriteLine($"{tileString} Failed building distance field!");
+                        //Console.WriteLine($"{tileString} Failed building distance field!");
                         continue;
                     }
 
                     if (!rcBuildRegions(m_rcContext, tile.chf, tileCfg.borderSize, tileCfg.minRegionArea, tileCfg.mergeRegionArea))
                     {
-                        Console.WriteLine($"{tileString} Failed building regions!");
+                        //Console.WriteLine($"{tileString} Failed building regions!");
                         continue;
                     }
 
                     tile.cset = new rcContourSet();
-                    if (!rcBuildContours(m_rcContext, tile.chf, tileCfg.maxSimplificationError, tileCfg.maxEdgeLen, tile.cset, 1))
+                    if (!rcBuildContours(m_rcContext, tile.chf, tileCfg.maxSimplificationError, tileCfg.maxEdgeLen, tile.cset))
                     {
-                        Console.WriteLine($"{tileString} Failed building contours!");
+                        //Console.WriteLine($"{tileString} Failed building contours!");
                         continue;
                     }
 
@@ -474,14 +560,20 @@ namespace DataExtractor.Mmap
                     tile.pmesh = new rcPolyMesh();
                     if (!rcBuildPolyMesh(m_rcContext, tile.cset, tileCfg.maxVertsPerPoly, tile.pmesh))
                     {
-                        Console.WriteLine($"{tileString} Failed building polymesh!");
+                        //Console.WriteLine($"{tileString} Failed building polymesh!");
                         continue;
+                    }
+
+                    string tempName = $"mmaps_new/{mapID:D4}{tileY:D2}{tileX:D2}_{x:D2}{y:D2}.txt";
+                    using (TextWriter writer = File.CreateText(tempName))
+                    {
+                       writer.Write(tile.pmesh.ToString());
                     }
 
                     tile.dmesh = new rcPolyMeshDetail();
                     if (!rcBuildPolyMeshDetail(m_rcContext, tile.pmesh, tile.chf, tileCfg.detailSampleDist, tileCfg.detailSampleMaxError, tile.dmesh))
                     {
-                        Console.WriteLine($"{tileString} Failed building polymesh detail!");
+                        //Console.WriteLine($"{tileString} Failed building polymesh detail!");
                         continue;
                     }
 
@@ -498,42 +590,40 @@ namespace DataExtractor.Mmap
                 }
             }
 
-            iv.pmesh = new rcPolyMesh();
-            rcMergePolyMeshes(m_rcContext, ref pmmerge, nmerge, iv.pmesh);
+            rcPolyMesh pmesh = new rcPolyMesh();
+            rcMergePolyMeshes(m_rcContext, pmmerge, nmerge, pmesh);
 
-            iv.dmesh = new rcPolyMeshDetail();
-            rcMergePolyMeshDetails(m_rcContext, dmmerge, nmerge, ref iv.dmesh);
-
+            rcPolyMeshDetail dmesh = new rcPolyMeshDetail();
+            rcMergePolyMeshDetails(m_rcContext, dmmerge, nmerge, dmesh);
 
             // set polygons as walkable
             // TODO: special flags for DYNAMIC polygons, ie surfaces that can be turned on and off
-            for (int i = 0; i < iv.pmesh.npolys; ++i)
+            for (int i = 0; i < pmesh.npolys; ++i)
             {
-                byte area = (byte)(iv.pmesh.areas[i] & RC_WALKABLE_AREA);
+                byte area = (byte)(pmesh.areas[i] & SharedConst.RC_WALKABLE_AREA);
                 if (area != 0)
                 {
                     if (area >= (byte)NavArea.MagmaSlime)
-                        iv.pmesh.flags[i] = (ushort)(1 << (63 - area));
+                        pmesh.flags[i] = (ushort)(1 << (63 - area));
                     else
-                        iv.pmesh.flags[i] = (byte)NavTerrainFlag.Ground; // TODO: these will be dynamic in future
+                        pmesh.flags[i] = (byte)NavTerrainFlag.Ground; // TODO: these will be dynamic in future
                 }
             }
 
             // setup mesh parameters
             dtNavMeshCreateParams createParams = new dtNavMeshCreateParams();
-            //memset(&createParams, 0, sizeof(createParams));
-            createParams.verts = iv.pmesh.verts;
-            createParams.vertCount = iv.pmesh.nverts;
-            createParams.polys = iv.pmesh.polys;
-            createParams.polyAreas = iv.pmesh.areas;
-            createParams.polyFlags = iv.pmesh.flags;
-            createParams.polyCount = iv.pmesh.npolys;
-            createParams.nvp = iv.pmesh.nvp;
-            createParams.detailMeshes = iv.dmesh.meshes;
-            createParams.detailVerts = iv.dmesh.verts;
-            createParams.detailVertsCount = iv.dmesh.nverts;
-            createParams.detailTris = iv.dmesh.tris;
-            createParams.detailTriCount = iv.dmesh.ntris;
+            createParams.verts = pmesh.verts;
+            createParams.vertCount = pmesh.nverts;
+            createParams.polys = pmesh.polys;
+            createParams.polyAreas = pmesh.areas;
+            createParams.polyFlags = pmesh.flags;
+            createParams.polyCount = pmesh.npolys;
+            createParams.nvp = pmesh.nvp;
+            createParams.detailMeshes = dmesh.meshes;
+            createParams.detailVerts = dmesh.verts;
+            createParams.detailVertsCount = dmesh.nverts;
+            createParams.detailTris = dmesh.tris;
+            createParams.detailTriCount = dmesh.ntris;
 
             createParams.offMeshConVerts = meshData.offMeshConnections.ToArray();
             createParams.offMeshConCount = meshData.offMeshConnections.Count / 6;
@@ -547,28 +637,28 @@ namespace DataExtractor.Mmap
             createParams.walkableClimb = BASE_UNIT_DIM * config.walkableClimb;      // keep less that walkableHeight (aka agent height)!
             createParams.tileX = (int)((((bmin[0] + bmax[0]) / 2) - navMesh.getParams().orig[0]) / SharedConst.GRID_SIZE);
             createParams.tileY = (int)((((bmin[2] + bmax[2]) / 2) - navMesh.getParams().orig[2]) / SharedConst.GRID_SIZE);
-            rcVcopy(createParams.bmin, bmin);
-            rcVcopy(createParams.bmax, bmax);
+            createParams.bmin = bmin;
+            createParams.bmax = bmax;
             createParams.cs = config.cs;
             createParams.ch = config.ch;
             createParams.tileLayer = 0;
             createParams.buildBvTree = true;
 
             // will hold final navmesh
-            dtRawTileData navData = null;
+            dtRawTileData dtRawTile;
 
             do
             {
                 // these values are checked within dtCreateNavMeshData - handle them here
                 // so we have a clear error message
-                if (createParams.nvp > DT_VERTS_PER_POLYGON)
+                if (createParams.nvp > SharedConst.DT_VERTS_PER_POLYGON)
                 {
-                    Console.WriteLine($"{tileString} Invalid verts-per-polygon value!");
+                    //Console.WriteLine($"{tileString} Invalid verts-per-polygon value!");
                     break;
                 }
                 if (createParams.vertCount >= 0xffff)
                 {
-                    Console.WriteLine($"{tileString} Too many vertices!");
+                    //Console.WriteLine($"{tileString} Too many vertices!");
                     break;
                 }
                 if (createParams.vertCount == 0 || createParams.verts == null)
@@ -585,57 +675,56 @@ namespace DataExtractor.Mmap
                     // we have flat tiles with no actual geometry - don't build those, its useless
                     // keep in mind that we do output those into debug info
                     // drop tiles with only exact count - some tiles may have geometry while having less tiles
-                    Console.WriteLine($"{tileString} No polygons to build on tile!              ");
+                    //Console.WriteLine($"{tileString} No polygons to build on tile!              ");
                     break;
                 }
                 if (createParams.detailMeshes == null || createParams.detailVerts == null || createParams.detailTris == null)
                 {
-                    Console.WriteLine($"{tileString} No detail mesh to build tile!");
+                    //Console.WriteLine($"{tileString} No detail mesh to build tile!");
                     break;
                 }
 
-                Console.WriteLine($"{tileString} Building navmesh tile...");
-                if (!dtCreateNavMeshData(createParams, out navData))
+                if (!dtCreateNavMeshData(createParams, out dtRawTile))
                 {
-                    Console.WriteLine($"{tileString} Failed building navmesh tile!");
+                    //Console.WriteLine($"{tileString} Failed building navmesh tile!");
                     break;
                 }
-                
+
                 ulong tileRef = 0;
-                Console.WriteLine($"{tileString} Adding tile to navmesh...");
                 // DT_TILE_FREE_DATA tells detour to unallocate memory when the tile
                 // is removed via removeTile()
-                if (dtStatusFailed(navMesh.addTile(navData, (int)dtTileFlags.DT_TILE_FREE_DATA, 0, ref tileRef)) || tileRef == 0)
+                if (dtStatusFailed(navMesh.addTile(dtRawTile, 1, 0, ref tileRef)) || tileRef == 0)
                 {
-                    Console.WriteLine($"{tileString} Failed adding tile to navmesh!");
+                    //Console.WriteLine($"{tileString} Failed adding tile to navmesh!");
                     break;
                 }
 
                 // file output
-                string fileName = $"mmaps/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
+                string fileName = $"mmaps_new/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
                 using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(fileName, FileMode.Create, FileAccess.Write)))
                 {
-                    Console.WriteLine($"{tileString} Writing to file...");
-
-                    var navDataBytes = navData.ToBytes();
+                    var navData = dtRawTile.ToBytes();
 
                     // write header
                     MmapTileHeader header = new MmapTileHeader();
                     header.mmapMagic = SharedConst.MMAP_MAGIC;
-                    header.dtVersion = Detour.DT_NAVMESH_VERSION;
+                    header.dtVersion = SharedConst.DT_NAVMESH_VERSION;
                     header.mmapVersion = SharedConst.MMAP_VERSION;
                     header.usesLiquids = m_terrainBuilder.usesLiquids();
-                    header.size = (uint)navDataBytes.Length;
+                    header.size = (uint)navData.Length;
                     binaryWriter.WriteStruct(header);
 
                     // write data
-                    binaryWriter.Write(navDataBytes);
+                    binaryWriter.Write(navData);
                 }
 
                 // now that tile is written to disk, we can unload it
-                navMesh.removeTile(tileRef, out dtRawTileData dtRawTileData);
+                navMesh.removeTile(tileRef, out dtRawTile);
             }
             while (false);
+
+            if (_debugMaps)
+                generateObjFile(mapID, tileX, tileY, meshData);
         }
 
         void getTileBounds(uint tileX, uint tileY, float[] verts, int vertCount, out float[] bmin, out float[] bmax)
@@ -648,7 +737,7 @@ namespace DataExtractor.Mmap
                 rcCalcBounds(verts, vertCount, bmin, bmax);
             else
             {
-                bmin[1] = float.MinValue;
+                bmin[1] = 1.175494351e-38F;
                 bmax[1] = float.MaxValue;
             }
 
@@ -800,14 +889,14 @@ namespace DataExtractor.Mmap
 
         bool shouldSkipTile(uint mapID, uint tileX, uint tileY)
         {
-            string fileName = $"mmaps/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
+            string fileName = $"mmaps_new/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
             if (!File.Exists(fileName))
                 return false;
 
             using (BinaryReader reader = new BinaryReader(File.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 MmapTileHeader header = reader.Read<MmapTileHeader>();
-                if (header.mmapMagic != SharedConst.MMAP_MAGIC || header.dtVersion != DT_NAVMESH_VERSION)
+                if (header.mmapMagic != SharedConst.MMAP_MAGIC || header.dtVersion != SharedConst.DT_NAVMESH_VERSION)
                     return false;
 
                 if (header.mmapVersion != SharedConst.MMAP_VERSION)
@@ -816,18 +905,44 @@ namespace DataExtractor.Mmap
             return true;
         }
 
+        void generateObjFile(uint mapID, uint tileX, uint tileY, MeshData meshData)
+        {
+            string fileName = $"mmaps_new/meshes/{mapID:D4}{tileY:D2}{tileX:D2}.obj";
+            using (TextWriter writer = File.CreateText(fileName))
+            {
+                List<float> allVerts = meshData.liquidVerts;
+                List<int> allTris = meshData.liquidTris;
+
+                TerrainBuilder.copyIndices(meshData.solidTris, allTris, allVerts.Count / 3);
+                allVerts.AddRange(meshData.solidVerts);
+
+                float[] verts = allVerts.ToArray();
+                int vertCount = allVerts.Count / 3;
+                int[] tris = allTris.ToArray();
+                int triCount = allTris.Count / 3;
+
+                for (int i = 0; i < allVerts.Count / 3; i++)
+                    writer.Write(string.Format("v {0} {1} {2}", verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2]) + "\n");
+
+                for (int i = 0; i < allTris.Count / 3; i++)
+                    writer.Write(string.Format("f {0} {1} {2}", tris[i * 3] + 1, tris[i * 3 + 1] + 1, tris[i * 3 + 2] + 1) + "\n");
+            }
+        }
+
         TerrainBuilder m_terrainBuilder;
         List<MapTiles> m_tiles = new List<MapTiles>();
 
         float m_maxWalkableAngle;
 
-        volatile int m_totalTiles;
-        volatile int m_totalTilesProcessed;
-
         // build performance - not really used for now
         rcContext m_rcContext;
 
         VMapManager2 _vmapManager;
+        bool _debugMaps;
+
+        List<Thread> _workerThreads = new List<Thread>();
+        ProducerConsumerQueue<uint> _queue = new ProducerConsumerQueue<uint>();
+        volatile bool _cancelationToken;
     }
 
     struct MmapTileHeader
@@ -837,8 +952,6 @@ namespace DataExtractor.Mmap
         public uint mmapVersion;
         public uint size;
         public bool usesLiquids;
-        //[MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-        //public byte[] padding;//3
     }
 
     class MapTiles

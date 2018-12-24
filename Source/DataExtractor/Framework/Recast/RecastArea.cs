@@ -248,9 +248,6 @@ public static partial class Recast {
         }
 
         chf.areas = areas;
-        //memcpy(chf.areas, areas, sizeof(byte)*chf.spanCount);
-
-        //rcFree(areas);
 
         ctx.stopTimer(rcTimerLabel.RC_TIMER_MEDIAN_AREA);
 

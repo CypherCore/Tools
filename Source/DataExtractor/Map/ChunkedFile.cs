@@ -15,11 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.CASC.Handlers;
+//using DataExtractor.Framework.CASC.Handlers;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using DataExtractor.CASCLib;
 
 namespace DataExtractor
 {
@@ -27,7 +28,7 @@ namespace DataExtractor
     {
         public bool loadFile(CASCHandler cascHandler, string fileName)
         {
-            var file = cascHandler.ReadFile(fileName);
+            var file = cascHandler.OpenFile(fileName);
             if (file == null)
                 return false;
 
@@ -54,11 +55,13 @@ namespace DataExtractor
                 return false;
 
             // Check version
-            //file_MVER version = chunk.As<file_MVER>();
-            //if (version->fcc != MverMagic.fcc)
-                //return false;
-            //if (version->ver != FILE_FORMAT_VERSION)
-                //return false;
+            file_MVER version = chunk.As<file_MVER>();
+            if (version.fourcc != 0x4d564552)
+                return false;
+
+            if (version.ver != 18)
+                return false;
+
             return true;
         }
 
@@ -154,7 +157,6 @@ namespace DataExtractor
                 }
                 else
                     index += 4;
-                    //index++;
             }
         }
 

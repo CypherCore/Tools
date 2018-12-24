@@ -15,11 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Constants;
+using DataExtractor.Framework.Constants;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using DataExtractor.Framework.ClientReader;
 
 namespace DataExtractor.Vmap
 {
@@ -27,14 +28,21 @@ namespace DataExtractor.Vmap
     {
         public static void ExtractGameobjectModels()
         {
+            var GameObjectDisplayInfoStorage = DBReader.Read<GameObjectDisplayInfoRecord>("DBFilesClient\\GameObjectDisplayInfo.db2");
+            if (GameObjectDisplayInfoStorage == null)
+            {
+                Console.WriteLine("Fatal error: Invalid GameObjectDisplayInfo.db2 file format!\n");
+                return;
+            }
+
             Console.WriteLine("Extracting GameObject models...");
 
-            string modelListPath = Program.wmoDirectory + "temp_gameobject_models";
+            string modelListPath = Program.WmoDirectory + "temp_gameobject_models";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(modelListPath, FileMode.Create, FileAccess.Write)))
             {
                 binaryWriter.WriteCString(SharedConst.RAW_VMAP_MAGIC);
 
-                foreach (var record in CliDB.GameObjectDisplayInfoStorage.Values)
+                foreach (var record in GameObjectDisplayInfoStorage.Values)
                 {
                     uint fileId = record.FileDataID;
                     if (fileId == 0)
@@ -74,10 +82,17 @@ namespace DataExtractor.Vmap
 
         public static void ParsMapFiles()
         {
+            var mapStorage = DBReader.Read<MapRecord>("DBFilesClient\\Map.db2");
+            if (mapStorage == null)
+            {
+                Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
+                return;
+            }
+
             Dictionary<uint, Tuple<string, int>> map_ids = new Dictionary<uint, Tuple<string, int>>();
             List<uint> maps_that_are_parents = new List<uint>();
 
-            foreach (var record in CliDB.MapStorage.Values)
+            foreach (var record in mapStorage.Values)
             {
                 map_ids[record.Id] = Tuple.Create(record.Directory, (int)record.ParentMapID);
                 if (record.ParentMapID >= 0)
@@ -145,7 +160,7 @@ namespace DataExtractor.Vmap
         {
             // Copy files from archive
             string fileName = $"File{fileId:X8}.xxx";
-            if (File.Exists(Program.wmoDirectory + fileName))
+            if (File.Exists(Program.WmoDirectory + fileName))
                 return true;
 
             bool file_ok = true;
@@ -157,7 +172,7 @@ namespace DataExtractor.Vmap
                 return true;
             }
 
-            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(Program.wmoDirectory + fileName, FileMode.Create, FileAccess.Write)))
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(Program.WmoDirectory + fileName, FileMode.Create, FileAccess.Write)))
             {
                 froot.ConvertToVMAPRootWmo(binaryWriter);
                 int Wmo_nVertices = 0;
@@ -179,7 +194,7 @@ namespace DataExtractor.Vmap
 
                 // Delete the extracted file in the case of an error
                 if (!file_ok)
-                    File.Delete(Program.wmoDirectory + fileName);
+                    File.Delete(Program.WmoDirectory + fileName);
             }
 
             return true;
@@ -189,7 +204,7 @@ namespace DataExtractor.Vmap
         {
             // Copy files from archive
             string plainName = fileName.GetPlainName();
-            if (File.Exists(Program.wmoDirectory + plainName))
+            if (File.Exists(Program.WmoDirectory + plainName))
                 return true;
 
             int p = 0;
@@ -221,7 +236,7 @@ namespace DataExtractor.Vmap
                 return true;
             }
 
-            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(Program.wmoDirectory + plainName, FileMode.Create, FileAccess.Write)))
+            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(Program.WmoDirectory + plainName, FileMode.Create, FileAccess.Write)))
             {
                 froot.ConvertToVMAPRootWmo(binaryWriter);
                    
@@ -257,7 +272,7 @@ namespace DataExtractor.Vmap
 
                 // Delete the extracted file in the case of an error
                 if (!file_ok)
-                    File.Delete(Program.wmoDirectory + fileName);
+                    File.Delete(Program.WmoDirectory + fileName);
             }
 
             return true;
@@ -265,7 +280,7 @@ namespace DataExtractor.Vmap
 
         public static bool ExtractSingleModel(uint fileId)
         {
-            string outputFile = Program.wmoDirectory + $"File{fileId:X8}.xxx";
+            string outputFile = Program.WmoDirectory + $"File{fileId:X8}.xxx";
             if (File.Exists(outputFile))
                 return true;
 
@@ -288,7 +303,7 @@ namespace DataExtractor.Vmap
                 fileName += "2";
             }
 
-            string outputFile = Program.wmoDirectory + fileName.GetPlainName();
+            string outputFile = Program.WmoDirectory + fileName.GetPlainName();
             if (File.Exists(outputFile))
                 return true;
 
@@ -302,7 +317,7 @@ namespace DataExtractor.Vmap
         static bool GetHeaderMagic(uint fileId, out string magic)
         {
             magic = "";
-            var file = Program.cascHandler.ReadFile((int)fileId);
+            var file = Program.CascHandler.OpenFile((int)fileId);
             if (file == null)
                 return false;
 
@@ -319,11 +334,6 @@ namespace DataExtractor.Vmap
             var key = Tuple.Create(clientId, clientDoodadId);
             if (!uniqueObjectIds.ContainsKey(key))
                 uniqueObjectIds.Add(key, (uint)(uniqueObjectIds.Count + 1));
-
-            if (uniqueObjectIds.Count == 198660)
-            {
-
-            }
 
             return uniqueObjectIds[key];
         }

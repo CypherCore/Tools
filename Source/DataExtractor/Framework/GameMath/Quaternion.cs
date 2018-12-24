@@ -20,7 +20,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
-namespace Framework.GameMath
+namespace DataExtractor.Framework.GameMath
 {
     /// <summary>
     /// Represents a double-precision floating-point quaternion.

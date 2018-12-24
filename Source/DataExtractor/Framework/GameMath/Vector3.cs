@@ -23,7 +23,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
-namespace Framework.GameMath
+namespace DataExtractor.Framework.GameMath
 {
     /// <summary>
     /// Represents 3-Dimentional vector of single-precision floating point numbers.

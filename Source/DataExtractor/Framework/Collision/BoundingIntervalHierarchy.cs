@@ -15,14 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.GameMath;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-namespace Framework.Collision
+namespace DataExtractor.Framework.Collision
 {
     public delegate void GetBounds<T>(T obj, out AxisAlignedBox box);
 
@@ -316,7 +316,7 @@ namespace Framework.Collision
                 return;
             }
 
-            buildData dat;
+            buildData dat = new buildData();
             dat.maxPrims = (int)leafSize;
             dat.numPrims = (uint)primitives.Count;
             dat.indices = new uint[dat.numPrims];
@@ -346,7 +346,7 @@ namespace Framework.Collision
             tempTree[nodeIndex + 1] = (uint)(right - left + 1);
         }
 
-        struct buildData
+        class buildData
         {
             public uint[] indices;
             public AxisAlignedBox[] primBound;

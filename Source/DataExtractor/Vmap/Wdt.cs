@@ -36,11 +36,11 @@ namespace DataExtractor.Vmap
 
         public bool init(uint mapId)
         {
-            MemoryStream stream = Program.cascHandler.ReadFile(_mapName + ".wdt");
+            Stream stream = Program.CascHandler.OpenFile(_mapName + ".wdt");
             if (stream == null)
                 return false;
 
-            string dirname = Program.wmoDirectory + "dir_bin";
+            string dirname = Program.WmoDirectory + "dir_bin";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
             {
                 using (BinaryReader binaryReader = new BinaryReader(stream))

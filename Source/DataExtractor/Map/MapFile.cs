@@ -15,11 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.CASC.Handlers;
-using Framework.Constants;
+//using DataExtractor.Framework.CASC.Handlers;
+using DataExtractor.Framework.Constants;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using DataExtractor.CASCLib;
+using System.Collections.Generic;
+using DataExtractor.Framework.ClientReader;
 
 namespace DataExtractor
 {
@@ -72,6 +75,27 @@ namespace DataExtractor
                 flight_box_max[i] = new short[3];
                 flight_box_min[i] = new short[3];
             }
+
+            LoadRequiredDb2Files();
+        }
+
+        static bool LoadRequiredDb2Files()
+        {
+            liquidMaterialStorage = DBReader.Read<LiquidMaterialRecord>("DBFilesClient\\LiquidMaterial.db2");
+            if (liquidMaterialStorage == null)
+            {
+                Console.WriteLine("Fatal error: Invalid LiquidMaterial.db2 file format!");
+                return false;
+            }
+
+            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>("DBFilesClient\\LiquidType.db2");
+            if (liquidTypeStorage == null)
+            {
+                Console.WriteLine("Fatal error: Invalid LiquidType.db2 file format!\n");
+                return false;
+            }
+
+            return true;
         }
 
         static bool TransformToHighRes(ushort lowResHoles, byte[] hiResHoles)
@@ -89,7 +113,7 @@ namespace DataExtractor
             return BitConverter.ToUInt64(hiResHoles, 0) != 0;
         }
 
-        public static bool ConvertADT(CASCHandler cascHandler, string inputPath, string outputPath, int cell_y, int cell_x, uint build, bool ignoreDeepWater)
+        public static bool ConvertADT(CASCHandler cascHandler, string inputPath, string outputPath, int cell_y, int cell_x, bool ignoreDeepWater)
         {
             ChunkedFile adt = new ChunkedFile();
             if (!adt.loadFile(cascHandler, inputPath))
@@ -99,7 +123,7 @@ namespace DataExtractor
             map_fileheader map;
             map.mapMagic = MAP_MAGIC;
             map.versionMagic = MAP_VERSION_MAGIC;
-            map.buildMagic = build;
+            map.buildMagic = cascHandler.Config.GetBuildNumber();
 
             // Get area flags data
             for (var x = 0; x < ADT_CELLS_PER_GRID; ++x)
@@ -313,7 +337,7 @@ namespace DataExtractor
                         }
 
                         liquid_entry[i][j] = h2o.GetLiquidType(adtLiquidHeader);
-                        var liquidTypeRecord = CliDB.LiquidTypes[liquid_entry[i][j]];
+                        var liquidTypeRecord = liquidTypeStorage[liquid_entry[i][j]];
                         switch ((LiquidType)liquidTypeRecord.SoundBank)
                         {
                             case LiquidType.Water:
@@ -776,6 +800,9 @@ namespace DataExtractor
         static short[][] flight_box_max = new short[3][];
         static short[][] flight_box_min = new short[3][];
 
+        public static Dictionary<uint, LiquidMaterialRecord> liquidMaterialStorage;
+        public static Dictionary<uint, LiquidTypeRecord> liquidTypeStorage;
+
         public struct map_fileheader
         {
             public uint mapMagic;
@@ -860,6 +887,23 @@ namespace DataExtractor
     interface IMapStruct
     {
         void Read(byte[] data);
+    }
+
+    class file_MVER : IMapStruct
+    {
+        public void Read(byte[] data)
+        {
+            using (var reader = new BinaryReader(new MemoryStream(data)))
+            {
+                fourcc = reader.ReadUInt32();
+                size = reader.ReadUInt32();
+                ver = reader.ReadUInt32();
+            }
+        }
+
+        public uint fourcc;
+        public uint size;
+        public uint ver;
     }
 
     class wdt_MAIN : IMapStruct
@@ -1188,11 +1232,11 @@ namespace DataExtractor
             if (liquidInstance.LiquidType == 2)
                 return LiquidVertexFormatType.Depth;
 
-            var liquidType = CliDB.LiquidTypes.LookupByKey(liquidInstance.LiquidType);
+            var liquidType = MapFile.liquidTypeStorage.LookupByKey(liquidInstance.LiquidType);
             if (liquidType != null)
             {
-                if (CliDB.LiquidMaterials.ContainsKey(liquidType.MaterialID))
-                    return (LiquidVertexFormatType)CliDB.LiquidMaterials[liquidType.MaterialID];
+                if (MapFile.liquidMaterialStorage.ContainsKey(liquidType.MaterialID))
+                    return (LiquidVertexFormatType)MapFile.liquidMaterialStorage[liquidType.MaterialID].LVF;
             }
 
             return (LiquidVertexFormatType)(-1);

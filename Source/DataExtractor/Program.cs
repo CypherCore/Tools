@@ -15,17 +15,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using DataExtractor.CASCLib;
+using DataExtractor.Framework.ClientReader;
+using DataExtractor.Framework.Constants;
 using DataExtractor.Mmap;
 using DataExtractor.Vmap;
 using DataExtractor.Vmap.Collision;
-using Framework.CASC;
-using Framework.CASC.Constants;
-using Framework.CASC.Handlers;
-using Framework.Constants;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace DataExtractor
 {
@@ -45,34 +44,29 @@ namespace DataExtractor
             Console.WriteLine(@"               \/__/  \/_/    Core Data Extractor");
             Console.WriteLine("\r");
 
-            baseDirectory = Environment.CurrentDirectory;
+            BaseDirectory = Environment.CurrentDirectory;
 
             if (args.Length > 0)
-                baseDirectory = Path.GetDirectoryName(args[0]);
-
-            PrintInstructions();
-
-            string answer = Console.ReadLine();
-            if (answer == "5")
-                Environment.Exit(0);
+                BaseDirectory = Path.GetDirectoryName(args[0]);
 
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Initializing CASC library...");
-            cascHandler = new CASCHandler(baseDirectory);
-            Console.WriteLine("Done.");
 
-            List<Locale> locales = new List<Locale>();
-            var buildInfoLocales = Regex.Matches(cascHandler.buildInfo["Tags"], " ([A-Za-z]{4}) speech");
-            foreach (Match m in buildInfoLocales)
+            CheckFiles.Start(BaseDirectory);
+
+            uint localeMask = 0;
+
+            CASCConfig config = CASCConfig.LoadLocalStorageConfig(BaseDirectory);
+            string[] tagLines = config.BuildInfo[0]["Tags"].Split(' ');
+            foreach (var line in tagLines)
             {
-                var localFlag = (Locale)Enum.Parse(typeof(Locale), m.Value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0]);
+                if (!Enum.TryParse(typeof(LocaleFlags), line, out object locale))
+                    continue;
 
-                if (!locales.Contains(localFlag))
-                    locales.Add(localFlag);
+                localeMask = localeMask | Convert.ToUInt32(locale);
             }
 
-            LocaleMask installedLocalesMask = (LocaleMask)cascHandler.GetInstalledLocalesMask();
-            LocaleMask firstInstalledLocale = LocaleMask.None;
+            installedLocalesMask = (LocaleFlags)localeMask;
+            firstInstalledLocale = LocaleFlags.None;
 
             for (Locale i = 0; i < Locale.Total; ++i)
             {
@@ -86,50 +80,45 @@ namespace DataExtractor
                 break;
             }
 
-            if (firstInstalledLocale < LocaleMask.None)
+            if (firstInstalledLocale < LocaleFlags.None)
             {
                 Console.WriteLine("No locales detected");
-                return;
+                Shutdown();
             }
 
-            uint build = cascHandler.GetBuildNumber();
-            if (build == 0)
+            Console.WriteLine("Initializing CASC library...");
+            CascHandler = CASCHandler.OpenStorage(config);
+            CascHandler.Root.SetFlags(firstInstalledLocale, ContentFlags.None);
+            Console.WriteLine("Done.");
+
+            while (true)
             {
-                Console.WriteLine("No build detected");
-                return;
-            }
-
-            Console.WriteLine($"Detected client build: {build}");
-            Console.WriteLine($"Detected client locale: {firstInstalledLocale}");
-            cascHandler.SetLocale(firstInstalledLocale);
-            if (!CliDB.LoadFiles(cascHandler))
-                return;
-
-            do
-            {
-                switch (answer)
-                {
-                    case "1":
-                        ExtractDbcFiles(firstInstalledLocale, installedLocalesMask);
-                        ExtractMaps(build);
-                        break;
-                    case "2":
-                        ExtractVMaps();
-                        break;
-                    case "3":
-                        ExtractMMaps();
-                        break;
-                    case "4":
-                    default:
-                        ExtractDbcFiles(firstInstalledLocale, installedLocalesMask);
-                        ExtractMaps(build);
-                        ExtractVMaps();
-                        //ExtractMMaps();
-                        break;
-                }
-
                 PrintInstructions();
-            } while ((answer = Console.ReadLine()) != "5");
+                string[] lines = Console.ReadLine().Split(' ');
+                for (var i = 0; i < lines.Length; ++i)
+                {
+                    switch (lines[i])
+                    {
+                        case "maps":
+                            ExtractMaps();
+                            break;
+                        case "vmaps":
+                            ExtractVMaps();
+                            break;
+                        case "mmaps":
+                            ExtractMMaps(lines);
+                            i = lines.Length;
+                            break;
+                        case "all":
+                            ExtractMaps();
+                            ExtractVMaps();
+                            //ExtractMMaps(lines);
+                            break;
+                        case "exit":
+                            return;
+                    }
+                }
+            }
         }
 
         static void PrintInstructions()
@@ -137,17 +126,18 @@ namespace DataExtractor
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Select your task.");
-            Console.WriteLine("1 - Extract DB2 and maps");
-            Console.WriteLine("2 - Extract vmaps(needs maps to be extracted before you run this)");
-            //Console.WriteLine("3 - Extract mmaps(needs vmaps to be extracted before you run this, may take hours)");
-            Console.WriteLine("4 - Extract all(may take hours)");
-            Console.WriteLine("5 - EXIT");
+            Console.WriteLine("maps                         Extract DB2 and maps");
+            Console.WriteLine("vmaps                        Extract vmaps(requires maps)");
+            Console.WriteLine("mmaps [-mapid #][-debug]     Extract mmaps(requires maps, vmaps. may take hours)");
+            Console.WriteLine("all                          Extract all(may take hours)");
+            Console.WriteLine("exit                         EXIT");
+            //Add args to the new of the command   so like Pick a task  ->  mmaps -debug  and many more if we need them
             Console.WriteLine();
         }
 
-        static void ExtractDbcFiles(LocaleMask firstInstalledLocale, LocaleMask localeMask)
+        static void ExtractDbcFiles()
         {
-            string path = $"{baseDirectory}/dbc";
+            string path = $"{BaseDirectory}/dbc";
             CreateDirectory(path);
 
             Console.WriteLine("Extracting db2 files...");
@@ -157,16 +147,16 @@ namespace DataExtractor
                 if (locale == Locale.None)
                     continue;
 
-                if (!Convert.ToBoolean(localeMask & SharedConst.WowLocaleToCascLocaleFlags[(int)locale]))
+                if (!Convert.ToBoolean(installedLocalesMask & SharedConst.WowLocaleToCascLocaleFlags[(int)locale]))
                     continue;
 
                 string currentPath = $"{path}/{locale}";
                 CreateDirectory(currentPath);
 
-                cascHandler.SetLocale(SharedConst.WowLocaleToCascLocaleFlags[(int)locale]);
+                CascHandler.Root.SetFlags(SharedConst.WowLocaleToCascLocaleFlags[(int)locale], ContentFlags.None);
                 foreach (var fileName in FileList.DBFilesClientList)
                 {
-                    var dbcStream = cascHandler.ReadFile(fileName);
+                    var dbcStream = CascHandler.OpenFile(fileName);
                     if (dbcStream == null)
                     {
                         Console.WriteLine($"Unable to open file {fileName} in the archive for locale {locale}\n");
@@ -180,27 +170,31 @@ namespace DataExtractor
 
             Console.WriteLine($"Extracted {count} db2 files.");
 
-            cascHandler.SetLocale(firstInstalledLocale);
-
-            ExtractCameraFiles();
-            ExtractGameTablesFiles();
+            CascHandler.Root.SetFlags(firstInstalledLocale, ContentFlags.None);
         }
 
         static void ExtractCameraFiles()
         {
-            Console.WriteLine($"Extracting ({CliDB.CameraFileNames.Count} CinematicCameras!)\n");
+            Dictionary<uint, CinematicCameraRecord> storage = DBReader.Read<CinematicCameraRecord>("DBFilesClient\\CinematicCamera.db2");
+            if (storage == null)
+            {
+                Console.WriteLine("Invalid CinematicCamera.db2 file format. Camera extract aborted.\n");
+                return;
+            }
 
-            string path = $"{baseDirectory}/cameras";
+            Console.WriteLine($"Extracting ({storage.Values.Count} CinematicCameras!)\n");
+
+            string path = $"{BaseDirectory}/cameras";
             CreateDirectory(path);
 
             // extract M2s
             uint count = 0;
-            foreach (int cameraFileId in CliDB.CameraFileNames)
+            foreach (var cameraRecord in storage.Values)
             {
-                var cameraStream = cascHandler.ReadFile(cameraFileId);
+                var cameraStream = CascHandler.OpenFile((int)cameraRecord.ModelFileDataID);
                 if (cameraStream != null)
                 {
-                    string file = path + $"/FILE{cameraFileId:X8}.xxx";
+                    string file = path + $"/FILE{cameraRecord.ModelFileDataID:X8}.xxx";
                     if (!File.Exists(file))
                     {
                         FileWriter.WriteFile(cameraStream, file);
@@ -208,7 +202,7 @@ namespace DataExtractor
                     }
                 }
                 else
-                    Console.WriteLine($"Unable to open file {$"File{cameraFileId:X8}.xxx"} in the archive: \n");
+                    Console.WriteLine($"Unable to open file {$"File{cameraRecord.ModelFileDataID:X8}.xxx"} in the archive: \n");
             }
 
             Console.WriteLine($"Extracted {count} Camera files.");
@@ -218,20 +212,20 @@ namespace DataExtractor
         {
             Console.WriteLine("Extracting game tables...\n");
 
-            string path = $"{baseDirectory}/gt";
+            string path = $"{BaseDirectory}/gt";
             CreateDirectory(path);
 
             uint count = 0;
             foreach (var fileName in FileList.GameTables)
             {
-                var dbcFile = cascHandler.ReadFile(fileName);
+                var dbcFile = CascHandler.OpenFile(fileName);
                 if (dbcFile == null)
                 {
                     Console.WriteLine($"Unable to open file {fileName} in the archive\n");
                     continue;
                 }
 
-                string file = $"{Environment.CurrentDirectory}/gt/{fileName.Replace("GameTables\\", "")}";
+                string file = $"{path}/{fileName.Replace("GameTables\\", "")}";
                 if (!File.Exists(file))
                 {
                     FileWriter.WriteFile(dbcFile, file);
@@ -242,22 +236,35 @@ namespace DataExtractor
             Console.WriteLine($"Extracted {count} files\n\n");
         }
 
-        static void ExtractMaps(uint build)
+        static void ExtractMaps()
         {
-            Console.WriteLine("Extracting maps...\n");
+            ExtractDbcFiles();
+            ExtractCameraFiles();
+            ExtractGameTablesFiles();
 
-            string path = $"{baseDirectory}/maps";
+            Console.WriteLine("Extracting maps...");
+
+            string path = $"{BaseDirectory}/maps";
             CreateDirectory(path);
 
-            Console.WriteLine("Convert map files\n");
+            Console.WriteLine("Convert map files");
             int count = 1;
-            foreach (var record in CliDB.MapStorage.Values)
+
+            Console.WriteLine("Loading DB2 files");
+            var mapStorage = DBReader.Read<MapRecord>("DBFilesClient\\Map.db2");
+            if (mapStorage == null)
             {
-                Console.Write($"Extract {record.Directory} ({count++}/{CliDB.MapStorage.Count})                  \n");
+                Console.WriteLine("Fatal error: Invalid Map.db2 file format!");
+                return;
+            }
+
+            foreach (var record in mapStorage.Values)
+            {
+                Console.Write($"Extract {record.Directory} ({count++}/{mapStorage.Count})                  \n");
                 // Loadup map grid data
                 string storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}.wdt";
                 ChunkedFile wdt = new ChunkedFile();
-                if (wdt.loadFile(cascHandler, storagePath))
+                if (wdt.loadFile(CascHandler, storagePath))
                 {
                     wdt_MAIN main = wdt.GetChunk("MAIN").As<wdt_MAIN>();
                     for (int y = 0; y < 64; ++y)
@@ -268,8 +275,7 @@ namespace DataExtractor
                             {
                                 storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}.adt";
                                 string outputFileName = $"{path}/{record.Id:D4}_{y:D2}_{x:D2}.map";
-                                bool ignoreDeepWater = MapFile.IsDeepWaterIgnored(record.Id, y, x);
-                                MapFile.ConvertADT(cascHandler, storagePath, outputFileName, y, x, build, ignoreDeepWater);
+                                MapFile.ConvertADT(CascHandler, storagePath, outputFileName, y, x, MapFile.IsDeepWaterIgnored(record.Id, y, x));
                             }
                         }
                         // draw progress bar
@@ -282,8 +288,8 @@ namespace DataExtractor
 
         static void ExtractVMaps()
         {
-            CreateDirectory(wmoDirectory);
-            File.Delete(wmoDirectory + "dir_bin");
+            CreateDirectory(WmoDirectory);
+            File.Delete(WmoDirectory + "dir_bin");
 
             // Extract models, listed in GameObjectDisplayInfo.dbc
             VmapFile.ExtractGameobjectModels();
@@ -294,14 +300,14 @@ namespace DataExtractor
             Console.WriteLine("Converting Vmap files...");
             CreateDirectory("./vmaps");
 
-            TileAssembler ta = new TileAssembler(wmoDirectory, "vmaps");
+            TileAssembler ta = new TileAssembler(WmoDirectory, "vmaps");
             if (!ta.convertWorld2())
                 return;
 
             Console.WriteLine("Converting Done!");
         }
 
-        static void ExtractMMaps()
+        static void ExtractMMaps(string[] args)
         {
             if (!Directory.Exists("maps") || Directory.GetFiles("maps").Length == 0)
             {
@@ -315,13 +321,38 @@ namespace DataExtractor
                 return;
             }
 
-            CreateDirectory("mmaps");
+            CreateDirectory("mmaps_new");
+
+            //handle args
+            bool debugMaps = false;
+            int mapId = -1;
+            for (var i = 1; i < args.Length; ++i)
+            {
+                switch(args[i].ToLower())
+                {
+                    case "-debug":
+                        CreateDirectory("mmaps/meshes");
+                        debugMaps = true;
+                        break;
+                    case "-id":
+                        mapId = int.Parse(args[i + 1]);
+                        i++;
+                        break;
+                }
+            }
 
             Console.WriteLine("Extracting MMap files...");
             var vm = new Framework.Collision.VMapManager2();
 
+            var mapStorage = DBReader.Read<MapRecord>("DBFilesClient\\Map.db2");
+            if (mapStorage == null)
+            {
+                Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
+                return;
+            }
+
             MultiMap<uint, uint> mapData = new MultiMap<uint, uint>();
-            foreach (var record in CliDB.MapStorage.Values)
+            foreach (var record in mapStorage.Values)
             {
                 if (record.ParentMapID != -1)
                     mapData.Add((uint)record.ParentMapID, record.Id);
@@ -329,12 +360,20 @@ namespace DataExtractor
 
             vm.Initialize(mapData);
 
-            MapBuilder builder = new MapBuilder(vm);
+            MapBuilder builder = new MapBuilder(vm, debugMaps);
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            builder.buildAllMaps();
+            if (mapId != -1)
+                builder.buildMap((uint)mapId);
+            else
+                builder.buildAllMaps();
 
             Console.WriteLine($"Finished. MMAPS were built in {watch.ElapsedMilliseconds} ms!");
+        }
+
+        static void ParseTaskAndOptions(string line)
+        {
+
         }
 
         public static void CreateDirectory(string path)
@@ -342,11 +381,56 @@ namespace DataExtractor
             if (Directory.Exists(path))
                 Directory.Delete(path, true);
 
+            while (Directory.Exists(path))
+                Thread.Sleep(10);
+
             Directory.CreateDirectory(path);
         }
 
-        public static CASCHandler cascHandler { get; set; }
-        public static string baseDirectory { get; set; }
-        public static string wmoDirectory { get; set; } = "./Buildings/";
+        public static void Shutdown()
+        {
+            Console.WriteLine("Halting process...");
+            Thread.Sleep(10000);
+            Environment.Exit(-1);
+        }
+
+        public static void Profile(string description, int iterations, Action func)
+        {
+            //Run at highest priority to minimize fluctuations caused by other processes/threads
+            System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
+            System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Highest;
+
+            // warm up 
+            func();
+
+            var watch = new System.Diagnostics.Stopwatch();
+
+            // clean up
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            watch.Start();
+            for (int i = 0; i < iterations; i++)
+            {
+                func();
+            }
+            watch.Stop();
+            Console.Write(description);
+            Console.WriteLine(" Time Elapsed {0} ms", watch.Elapsed.TotalMilliseconds);
+
+            // clean up
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        public static CASCHandler CascHandler { get; set; }
+
+        static LocaleFlags installedLocalesMask { get; set; }
+        static LocaleFlags firstInstalledLocale { get; set; }
+
+        public static string BaseDirectory { get; set; }
+        public static string WmoDirectory { get; set; } = "./Buildings/";
     }
 }

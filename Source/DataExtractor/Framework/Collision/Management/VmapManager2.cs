@@ -18,7 +18,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Framework.Collision
+namespace DataExtractor.Framework.Collision
 {
     public enum VMAPLoadResult
     {
@@ -73,20 +73,21 @@ namespace Framework.Collision
 
         public WorldModel AcquireModelInstance(string basepath, string filename)
         {
+            filename = filename.TrimEnd('\0');
             var model = _loadedModelFiles.LookupByKey(filename);
             if (model == null)
             {
                 WorldModel worldmodel = new WorldModel();
-                if (!worldmodel.readFile(basepath + filename + ".vmo"))
+                if (!worldmodel.readFile(basepath + filename))
                 {
                     Console.WriteLine($"VMapManager: could not load '{filename}.vmo'");
                     return null;
                 }
 
-                //Console.WriteLine($"VMapManager: loading file '{filename}'");
-                _loadedModelFiles.Add(filename, new ManagedModel());
-                model = _loadedModelFiles.LookupByKey(filename);
+                model = new ManagedModel();
                 model.SetModel(worldmodel);
+
+                _loadedModelFiles.Add(filename, model);
             }
             model.IncRefCount();
             return model.GetModel();
@@ -94,6 +95,7 @@ namespace Framework.Collision
 
         public void ReleaseModelInstance(string filename)
         {
+            filename = filename.TrimEnd('\0');
             var model = _loadedModelFiles.LookupByKey(filename);
             if (model == null)
             {

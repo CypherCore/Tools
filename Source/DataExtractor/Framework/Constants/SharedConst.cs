@@ -15,10 +15,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.CASC.Constants;
 using System;
+using DataExtractor.CASCLib;
 
-namespace Framework.Constants
+namespace DataExtractor.Framework.Constants
 {
     class SharedConst
     {
@@ -27,25 +27,29 @@ namespace Framework.Constants
 
         public const float LIQUID_TILE_SIZE = 533.333f / 128.0f;
 
-        public static LocaleMask[] WowLocaleToCascLocaleFlags =
+        public static LocaleFlags[] WowLocaleToCascLocaleFlags =
         {
-            LocaleMask.enUS | LocaleMask.enGB,
-            LocaleMask.koKR,
-            LocaleMask.frFR,
-            LocaleMask.deDE,
-            LocaleMask.zhCN,
-            LocaleMask.zhTW,
-            LocaleMask.esES,
-            LocaleMask.esMX,
-            LocaleMask.ruRU,
+            LocaleFlags.enUS | LocaleFlags.enGB,
+            LocaleFlags.koKR,
+            LocaleFlags.frFR,
+            LocaleFlags.deDE,
+            LocaleFlags.zhCN,
+            LocaleFlags.zhTW,
+            LocaleFlags.esES,
+            LocaleFlags.esMX,
+            LocaleFlags.ruRU,
             0,
-            LocaleMask.ptBR | LocaleMask.ptPT,
-            LocaleMask.itIT
+            LocaleFlags.ptBR | LocaleFlags.ptPT,
+            LocaleFlags.itIT
         };
 
         public const uint MMAP_MAGIC = 0x4D4D4150;   // 'MMAP'
         public const uint MMAP_VERSION = 9;
-        public const uint MAP_VERSION_MAGIC = 0x392E3176;        
+        public const uint MAP_VERSION_MAGIC = 0x392E3176;
+        public const int DT_NAVMESH_VERSION = 7;
+        public const int DT_VERTS_PER_POLYGON = 6;
+        public const int RC_WALKABLE_AREA = 63;
+        public const int DT_POLY_BITS = 31;
 
         public const int V9_SIZE = 129;
         public const int V9_SIZE_SQ = V9_SIZE * V9_SIZE;

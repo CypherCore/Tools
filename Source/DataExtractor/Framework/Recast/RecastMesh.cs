@@ -1,9 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 
 public static partial class Recast
 {
-
     public class rcEdge
     {
         public ushort[] vert = new ushort[2];
@@ -11,26 +11,24 @@ public static partial class Recast
         public ushort[] poly = new ushort[2];
     };
 
-    public static bool buildMeshAdjacency(ushort[] polys, int npolys,
-                                   int nverts, int vertsPerPoly)
+    public static bool buildMeshAdjacency(ushort[] polys, int npolys, int nverts, int vertsPerPoly)
     {
         // Based on code by Eric Lengyel from:
         // http://www.terathon.com/code/edges.php
 
         int maxEdgeCount = npolys * vertsPerPoly;
-        ushort[] firstEdge = new ushort[nverts + maxEdgeCount];//(ushort*)rcAlloc(sizeof(ushort)*(nverts + maxEdgeCount), RC_ALLOC_TEMP);
+        ushort[] firstEdge = new ushort[nverts + maxEdgeCount];
         if (firstEdge == null)
             return false;
+
         //ushort* nextEdge = firstEdge + nverts;
         int nextEdgeIndex = nverts;
         int edgeCount = 0;
 
-        //rcEdge* edges = (rcEdge*)rcAlloc(sizeof(rcEdge)*maxEdgeCount, RC_ALLOC_TEMP);
         rcEdge[] edges = new rcEdge[maxEdgeCount];
         rccsArrayItemsCreate(edges);
         if (edges == null)
         {
-            //rcFree(firstEdge);
             firstEdge = null;
             return false;
         }
@@ -59,10 +57,22 @@ public static partial class Recast
                     edge.poly[1] = (ushort)i;
                     edge.polyEdge[1] = 0;
                     // Insert edge
+
                     firstEdge[nextEdgeIndex + edgeCount] = firstEdge[v0];
                     firstEdge[v0] = (ushort)edgeCount;
                     edgeCount++;
                 }
+            }
+        }
+
+        string tempName = $"mmaps_new/Test.txt";
+        using (TextWriter writer = File.CreateText(tempName))
+        {
+            for (int i = 0; i < nverts + maxEdgeCount; ++i)
+            {
+                writer.Write("FirstEdgeIndex: {0}\n", i);
+                writer.Write("Id: {0}\n", firstEdge[i]);
+                writer.Write("\n");
             }
         }
 
@@ -80,6 +90,10 @@ public static partial class Recast
                     for (ushort e = firstEdge[v1]; e != RC_MESH_NULL_IDX; e = firstEdge[nextEdgeIndex + e])
                     {
                         rcEdge edge = edges[e];
+                        if (e == 37)
+                        {
+
+                        }
                         if (edge.vert[1] == v0 && edge.poly[0] == edge.poly[1])
                         {
                             edge.poly[1] = (ushort)i;
@@ -106,12 +120,8 @@ public static partial class Recast
             }
         }
 
-        //rcFree(firstEdge);
-        //rcFree(edges);
-
         return true;
     }
-
 
     const int VERTEX_BUCKET_COUNT = (1 << 12);
 
@@ -124,8 +134,7 @@ public static partial class Recast
         return (int)(n & (VERTEX_BUCKET_COUNT - 1));
     }
 
-    public static ushort addVertex(ushort x, ushort y, ushort z,
-                                    ushort[] verts, int[] firstVert, int[] nextVert, ref int nv)
+    public static ushort addVertex(ushort x, ushort y, ushort z, ushort[] verts, int[] firstVert, int[] nextVert, ref int nv)
     {
         int bucket = computeVertexHash(x, 0, z);
         int i = firstVert[bucket];
@@ -142,7 +151,8 @@ public static partial class Recast
         }
 
         // Could not find, create new.
-        i = nv; nv++;
+        i = nv;
+        nv++;
         //ushort[] v = &verts[i*3];
         int vInd = i * 3;
         verts[vInd] = x;
@@ -543,9 +553,7 @@ public static partial class Recast
                ((int)c[cStart + 0] - (int)a[aStart + 0]) * ((int)b[bStart + 2] - (int)a[aStart + 2]) < 0;
     }
 
-    public static int getPolyMergeValue(ushort[] pa, int paStart, ushort[] pb, int pbStart,
-                                 ushort[] verts, ref int ea, ref int eb,
-                                 int nvp)
+    public static int getPolyMergeValue(ushort[] pa, int paStart, ushort[] pb, int pbStart, ushort[] verts, ref int ea, ref int eb, int nvp)
     {
         int na = countPolyVerts(pa, paStart, nvp);
         int nb = countPolyVerts(pb, pbStart, nvp);
@@ -609,8 +617,7 @@ public static partial class Recast
         return dx * dx + dy * dy;
     }
 
-    public static void mergePolys(ushort[] pa, int paStart, ushort[] pb, int pbStart, int ea, int eb,
-                           ushort[] tmp, int tmpStart, int nvp)
+    public static void mergePolyVerts(ushort[] pa, int paStart, ushort[] pb, int pbStart, int ea, int eb, ushort[] tmp, int tmpStart, int nvp)
     {
         int na = countPolyVerts(pa, paStart, nvp);
         int nb = countPolyVerts(pb, pbStart, nvp);
@@ -635,7 +642,6 @@ public static partial class Recast
             pa[paStart + i] = tmp[tmpStart + i];
         }
     }
-
 
     public static void pushFront(int v, int[] arr, ref int an)
     {
@@ -694,7 +700,7 @@ public static partial class Recast
         // Find edges which share the removed vertex.
         int maxEdges = numTouchedVerts * 2;
         int nedges = 0;
-        //rcScopedDelete<int> edges = (int*)rcAlloc(sizeof(int)*maxEdges*3, RC_ALLOC_TEMP);
+
         int[] edges = new int[maxEdges * 3];
         if (edges == null)
         {
@@ -781,7 +787,6 @@ public static partial class Recast
         }
 
         int nedges = 0;
-        //rcScopedDelete<int> edges = (int*)rcAlloc(sizeof(int)*numRemovedVerts*nvp*4, RC_ALLOC_TEMP);
         int[] edges = new int[numRemovedVerts * nvp * 4];
         if (edges == null)
         {
@@ -790,7 +795,6 @@ public static partial class Recast
         }
 
         int nhole = 0;
-        //rcScopedDelete<int> hole = (int*)rcAlloc(sizeof(int)*numRemovedVerts*nvp, RC_ALLOC_TEMP);
         int[] hole = new int[numRemovedVerts * nvp];
         if (hole == null)
         {
@@ -799,7 +803,6 @@ public static partial class Recast
         }
 
         int nhreg = 0;
-        //rcScopedDelete<int> hreg = (int*)rcAlloc(sizeof(int)*numRemovedVerts*nvp, RC_ALLOC_TEMP);
         int[] hreg = new int[numRemovedVerts * nvp];
         if (hreg == null)
         {
@@ -808,7 +811,6 @@ public static partial class Recast
         }
 
         int nharea = 0;
-        //rcScopedDelete<int> harea = (int*)rcAlloc(sizeof(int)*numRemovedVerts*nvp, RC_ALLOC_TEMP);
         int[] harea = new int[numRemovedVerts * nvp];
         if (harea == null)
         {
@@ -845,19 +847,16 @@ public static partial class Recast
                 // Remove the polygon.
                 //ushort* p2 = &mesh.polys[(mesh.npolys-1)*nvp*2];
                 int p2Index = (mesh.npolys - 1) * nvp * 2;
-                if (mesh.polys[pIndex] != mesh.polys[p2Index])
+                if (pIndex != p2Index)
                 {
                     //memcpy(p,p2,sizeof(ushort)*nvp);
                     for (int j = 0; j < nvp; ++j)
-                    {
                         mesh.polys[pIndex + j] = mesh.polys[p2Index + j];
-                    }
                 }
                 //memset(p+nvp,0xff,sizeof(ushort)*nvp);
                 for (int j = 0; j < nvp; ++j)
-                {
                     mesh.polys[pIndex + nvp + j] = 0xffff;
-                }
+
                 mesh.regs[i] = mesh.regs[mesh.npolys - 1];
                 mesh.areas[i] = mesh.areas[mesh.npolys - 1];
                 mesh.npolys--;
@@ -955,7 +954,6 @@ public static partial class Recast
                 break;
         }
 
-        //rcScopedDelete<int> tris = (int*)rcAlloc(sizeof(int)*nhole*3, RC_ALLOC_TEMP);
         int[] tris = new int[nhole * 3];
         if (tris == null)
         {
@@ -963,7 +961,6 @@ public static partial class Recast
             return false;
         }
 
-        //rcScopedDelete<int> tverts = (int*)rcAlloc(sizeof(int)*nhole*4, RC_ALLOC_TEMP);
         int[] tverts = new int[nhole * 4];
         if (tverts == null)
         {
@@ -971,7 +968,6 @@ public static partial class Recast
             return false;
         }
 
-        //rcScopedDelete<int> thole = (int*)rcAlloc(sizeof(int)*nhole, RC_ALLOC_TEMP);
         int[] thole = new int[nhole];
         if (tverts == null)
         {
@@ -999,21 +995,20 @@ public static partial class Recast
         }
 
         // Merge the hole triangles back to polygons.
-        //rcScopedDelete<ushort> polys = (ushort*)rcAlloc(sizeof(ushort)*(ntris+1)*nvp, RC_ALLOC_TEMP);
         ushort[] polys = new ushort[(ntris + 1) * nvp];
         if (polys == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "removeVertex: Out of memory 'polys' " + (ntris + 1) * nvp);
             return false;
         }
-        //rcScopedDelete<ushort> pregs = (ushort*)rcAlloc(sizeof(ushort)*ntris, RC_ALLOC_TEMP);
+
         ushort[] pregs = new ushort[ntris];
         if (pregs == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "removeVertex: Out of memory 'pregs' " + ntris);
             return false;
         }
-        //rcScopedDelete<byte> pareas = (byte*)rcAlloc(sizeof(byte)*ntris, RC_ALLOC_TEMP);
+
         byte[] pareas = new byte[ntris];
         if (pregs == null)
         {
@@ -1040,7 +1035,14 @@ public static partial class Recast
                 polys[npolys * nvp + 0] = (ushort)hole[tris[tIndex + 0]];
                 polys[npolys * nvp + 1] = (ushort)hole[tris[tIndex + 1]];
                 polys[npolys * nvp + 2] = (ushort)hole[tris[tIndex + 2]];
-                pregs[npolys] = (ushort)hreg[tris[tIndex + 0]];
+
+                // If this polygon covers multiple region types then
+                // mark it as such
+                if (hreg[tris[tIndex + 0]] != hreg[tris[tIndex + 1]] || hreg[tris[tIndex + 1]] != hreg[tris[tIndex + 2]])
+                    pregs[npolys] = RC_MULTIPLE_REGS;
+                else
+                    pregs[npolys] = (ushort)hreg[tris[tIndex + 0]];
+
                 pareas[npolys] = (byte)harea[tris[tIndex + 0]];
                 npolys++;
             }
@@ -1089,10 +1091,13 @@ public static partial class Recast
                     //ushort* pb = &polys[bestPb*nvp];
                     int paIndex = bestPa * nvp;
                     int pbIndex = bestPb * nvp;
-                    mergePolys(polys, paIndex, polys, pbIndex, bestEa, bestEb, polys, tmpPolyIndex, nvp);
+                    mergePolyVerts(polys, paIndex, polys, pbIndex, bestEa, bestEb, polys, tmpPolyIndex, nvp);
+                    if (pregs[bestPa] != pregs[bestPb])
+                        pregs[bestPa] = RC_MULTIPLE_REGS;
+
                     //ushort* last = &polys[(npolys-1)*nvp];
                     int lastIndex = (npolys - 1) * nvp;
-                    if (polys[pbIndex] != polys[lastIndex])
+                    if (pbIndex != lastIndex)
                     {
                         //memcpy(pb, last, sizeof(ushort)*nvp);
                         for (int j = 0; j < nvp; ++j)
@@ -1120,14 +1125,11 @@ public static partial class Recast
 
             int pIndex = mesh.npolys * nvp * 2;
             for (int j = 0; j < nvp * 2; ++j)
-            {
                 mesh.polys[pIndex + j] = 0xffff;
-            }
 
             for (int j = 0; j < nvp; ++j)
-            {
                 mesh.polys[pIndex + j] = polys[i * nvp + j];
-            }
+
             mesh.regs[mesh.npolys] = pregs[i];
             mesh.areas[mesh.npolys] = pareas[i];
             mesh.npolys++;
@@ -1158,6 +1160,7 @@ public static partial class Recast
         mesh.cs = cset.cs;
         mesh.ch = cset.ch;
         mesh.borderSize = cset.borderSize;
+        mesh.maxEdgeError = cset.maxError;
 
         int maxVertices = 0;
         int maxTris = 0;
@@ -1177,37 +1180,34 @@ public static partial class Recast
             return false;
         }
 
-        //rcScopedDelete<byte> vflags = (byte*)rcAlloc(sizeof(byte)*maxVertices, RC_ALLOC_TEMP);
         byte[] vflags = new byte[maxVertices];
         if (vflags == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildPolyMesh: Out of memory 'vflags' " + maxVertices);
             return false;
         }
-        //memset(vflags, 0, maxVertices);
 
-        //mesh.verts = (ushort*)rcAlloc(sizeof(ushort)*maxVertices*3, RC_ALLOC_PERM);
         mesh.verts = new ushort[maxVertices * 3];
         if (mesh.verts == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildPolyMesh: Out of memory 'mesh.verts' " + maxVertices);
             return false;
         }
-        //mesh.polys = (ushort*)rcAlloc(sizeof(ushort)*maxTris*nvp*2, RC_ALLOC_PERM);
+
         mesh.polys = new ushort[maxTris * nvp * 2];
         if (mesh.polys == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildPolyMesh: Out of memory 'mesh.polys' " + maxTris * nvp * 2);
             return false;
         }
-        //mesh.regs = (ushort*)rcAlloc(sizeof(ushort)*maxTris, RC_ALLOC_PERM);
+
         mesh.regs = new ushort[maxTris];
         if (mesh.regs == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildPolyMesh: Out of memory 'mesh.regs' " + maxTris);
             return false;
         }
-        //mesh.areas = (byte*)rcAlloc(sizeof(byte)*maxTris, RC_ALLOC_PERM);
+
         mesh.areas = new byte[maxTris];
         if (mesh.areas == null)
         {
@@ -1220,25 +1220,22 @@ public static partial class Recast
         mesh.nvp = nvp;
         mesh.maxpolys = maxTris;
 
-        //memset(mesh.verts, 0, sizeof(ushort)*maxVertices*3);
-        //memset(mesh.polys, 0xff, sizeof(ushort)*maxTris*nvp*2);
         for (int i = 0; i < maxTris * nvp * 2; ++i)
         {
+            if (i == 116)
+            {
+
+            }
             mesh.polys[i] = 0xffff;
         }
-        //memset(mesh.regs, 0, sizeof(ushort)*maxTris);
-        //memset(mesh.areas, 0, sizeof(byte)*maxTris);
 
-        //rcScopedDelete<int> nextVert = (int*)rcAlloc(sizeof(int)*maxVertices, RC_ALLOC_TEMP);
         int[] nextVert = new int[maxVertices];
         if (nextVert == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildPolyMesh: Out of memory 'nextVert' " + maxVertices);
             return false;
         }
-        //memset(nextVert, 0, sizeof(int)*maxVertices);
 
-        //rcScopedDelete<int> firstVert = (int*)rcAlloc(sizeof(int)*VERTEX_BUCKET_COUNT, RC_ALLOC_TEMP);
         int[] firstVert = new int[VERTEX_BUCKET_COUNT];
         if (firstVert == null)
         {
@@ -1248,21 +1245,20 @@ public static partial class Recast
         for (int i = 0; i < VERTEX_BUCKET_COUNT; ++i)
             firstVert[i] = -1;
 
-        //rcScopedDelete<int> indices = (int*)rcAlloc(sizeof(int)*maxVertsPerCont, RC_ALLOC_TEMP);
         int[] indices = new int[maxVertsPerCont];
         if (indices == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildPolyMesh: Out of memory 'indices' " + maxVertsPerCont);
             return false;
         }
-        //rcScopedDelete<int> tris = (int*)rcAlloc(sizeof(int)*maxVertsPerCont*3, RC_ALLOC_TEMP);
+
         int[] tris = new int[maxVertsPerCont * 3];
         if (tris == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildPolyMesh: Out of memory 'tris' " + maxVertsPerCont * 3);
             return false;
         }
-        //rcScopedDelete<ushort> polys = (ushort*)rcAlloc(sizeof(ushort)*(maxVertsPerCont+1)*nvp, RC_ALLOC_TEMP);
+
         ushort[] polys = new ushort[(maxVertsPerCont + 1) * nvp];
         if (polys == null)
         {
@@ -1377,7 +1373,7 @@ public static partial class Recast
                         //ushort* pb = &polys[bestPb*nvp];
                         int paIndex = bestPa * nvp;
                         int pbIndex = bestPb * nvp;
-                        mergePolys(polys, paIndex, polys, pbIndex, bestEa, bestEb, polys, tmpPolyIndex, nvp);
+                        mergePolyVerts(polys, paIndex, polys, pbIndex, bestEa, bestEb, polys, tmpPolyIndex, nvp);
                         //ushort* lastPoly = &polys[(npolys-1)*nvp];
                         int lastPolyIndex = (npolys - 1) * nvp;
                         if (pbIndex != lastPolyIndex)
@@ -1419,7 +1415,6 @@ public static partial class Recast
                 }
             }
         }
-
 
         // Remove edge vertices.
         for (int i = 0; i < mesh.nverts; ++i)
@@ -1516,7 +1511,7 @@ public static partial class Recast
     }
 
     /// @see rcAllocPolyMesh, rcPolyMesh
-    public static bool rcMergePolyMeshes(rcContext ctx, ref rcPolyMesh[] meshes, int nmeshes, rcPolyMesh mesh)
+    public static bool rcMergePolyMeshes(rcContext ctx, rcPolyMesh[] meshes, int nmeshes, rcPolyMesh mesh)
     {
         Debug.Assert(ctx != null, "rcContext is null");
 
@@ -1544,7 +1539,6 @@ public static partial class Recast
         }
 
         mesh.nverts = 0;
-        //mesh.verts = (ushort*)rcAlloc(sizeof(ushort)*maxVerts*3, RC_ALLOC_PERM);
         mesh.verts = new ushort[maxVerts * 3];
         if (mesh.verts == null)
         {
@@ -1553,56 +1547,45 @@ public static partial class Recast
         }
 
         mesh.npolys = 0;
-        //mesh.polys = (ushort*)rcAlloc(sizeof(ushort)*maxPolys*2*mesh.nvp, RC_ALLOC_PERM);
         mesh.polys = new ushort[maxPolys * 2 * mesh.nvp];
         if (mesh.polys == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcMergePolyMeshes: Out of memory 'mesh.polys' " + maxPolys * 2 * mesh.nvp);
             return false;
         }
-        //memset(mesh.polys, 0xff, sizeof(ushort)*maxPolys*2*mesh.nvp);
         for (int i = 0; i < maxPolys * 2 * mesh.nvp; ++i)
         {
             mesh.polys[i] = 0xffff;
         }
 
-        //mesh.regs = (ushort*)rcAlloc(sizeof(ushort)*maxPolys, RC_ALLOC_PERM);
         mesh.regs = new ushort[maxPolys];
         if (mesh.regs == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcMergePolyMeshes: Out of memory 'mesh.regs' " + maxPolys);
             return false;
         }
-        //memset(mesh.regs, 0, sizeof(ushort)*maxPolys);
 
-        //mesh.areas = (byte*)rcAlloc(sizeof(byte)*maxPolys, RC_ALLOC_PERM);
         mesh.areas = new byte[maxPolys];
         if (mesh.areas == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcMergePolyMeshes: Out of memory 'mesh.areas' " + maxPolys);
             return false;
         }
-        //memset(mesh.areas, 0, sizeof(byte)*maxPolys);
 
-        //mesh.flags = (ushort*)rcAlloc(sizeof(ushort)*maxPolys, RC_ALLOC_PERM);
         mesh.flags = new ushort[maxPolys];
         if (mesh.flags == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcMergePolyMeshes: Out of memory 'mesh.flags' " + maxPolys);
             return false;
         }
-        //memset(mesh.flags, 0, sizeof(ushort)*maxPolys);
 
-        //rcScopedDelete<int> nextVert = (int*)rcAlloc(sizeof(int)*maxVerts, RC_ALLOC_TEMP);
         int[] nextVert = new int[maxVerts];
         if (nextVert == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcMergePolyMeshes: Out of memory 'nextVert' " + maxVerts);
             return false;
         }
-        //memset(nextVert, 0, sizeof(int)*maxVerts);
 
-        //rcScopedDelete<int> firstVert = (int*)rcAlloc(sizeof(int)*VERTEX_BUCKET_COUNT, RC_ALLOC_TEMP);
         int[] firstVert = new int[VERTEX_BUCKET_COUNT];
         if (firstVert == null)
         {
@@ -1614,14 +1597,12 @@ public static partial class Recast
             firstVert[i] = -1;
         }
 
-        //rcScopedDelete<ushort> vremap = (ushort*)rcAlloc(sizeof(ushort)*maxVertsPerMesh, RC_ALLOC_PERM);
         ushort[] vremap = new ushort[maxVertsPerMesh];
         if (vremap == null)
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcMergePolyMeshes: Out of memory 'vremap' " + maxVertsPerMesh);
             return false;
         }
-        //memset(vremap, 0, sizeof(ushort)*maxVertsPerMesh);
 
         for (int i = 0; i < nmeshes; ++i)
         {
@@ -1697,6 +1678,7 @@ public static partial class Recast
         }
 
         // Calculate adjacency.
+
         if (!buildMeshAdjacency(mesh.polys, mesh.npolys, mesh.nverts, mesh.nvp))
         {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcMergePolyMeshes: Adjacency failed.");
@@ -1737,6 +1719,7 @@ public static partial class Recast
         dst.cs = src.cs;
         dst.ch = src.ch;
         dst.borderSize = src.borderSize;
+        dst.maxEdgeError = src.maxEdgeError;
 
         //dst.verts = (ushort*)rcAlloc(sizeof(ushort)*src.nverts*3, RC_ALLOC_PERM);
         dst.verts = new ushort[src.nverts * 3];

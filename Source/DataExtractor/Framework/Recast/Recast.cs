@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 
-public static partial class Recast {
-
+public static partial class Recast
+{
     /// The value of PI used by Recast.
     public const float RC_PI = 3.14159265f;
 
@@ -15,7 +15,8 @@ public static partial class Recast {
 
     /// Recast log categories.
     /// @see rcContext
-    public enum rcLogCategory {
+    public enum rcLogCategory
+    {
         RC_LOG_PROGRESS = 1,	//< A progress log entry.
         RC_LOG_WARNING,			//< A warning log entry.
         RC_LOG_ERROR,			//< An error log entry.
@@ -23,7 +24,8 @@ public static partial class Recast {
 
     /// Recast performance timer categories.
     /// @see rcContext
-    public enum rcTimerLabel {
+    public enum rcTimerLabel
+    {
         /// The user defined total time of the build.
         RC_TIMER_TOTAL,
         /// A user defined build time.
@@ -85,18 +87,21 @@ public static partial class Recast {
     };
 
 
-    public static void rcCalcBounds(float[] verts, int nv, float[] bmin, float[] bmax) {
+    public static void rcCalcBounds(float[] verts, int nv, float[] bmin, float[] bmax)
+    {
         // Calculate bounding box.
         rcVcopy(bmin, verts);
         rcVcopy(bmax, verts);
-        for (int i = 1; i < nv; ++i) {
+        for (int i = 1; i < nv; ++i)
+        {
             int vStart = i * 3;
             rcVmin(bmin, 0, verts, vStart);
             rcVmax(bmax, 0, verts, vStart);
         }
     }
 
-    public static void rcCalcGridSize(float[] bmin, float[] bmax, float cs, out int w, out int h) {
+    public static void rcCalcGridSize(float[] bmin, float[] bmax, float cs, out int w, out int h)
+    {
         w = (int)((bmax[0] - bmin[0]) / cs + 0.5f);
         h = (int)((bmax[2] - bmin[2]) / cs + 0.5f);
     }
@@ -109,7 +114,8 @@ public static partial class Recast {
     /// @see rcAllocHeightfield, rcHeightfield 
     public static bool rcCreateHeightfield(rcContext ctx, rcHeightfield hf, int width, int height,
                          float[] bmin, float[] bmax,
-                         float cs, float ch) {
+                         float cs, float ch)
+    {
         rcIgnoreUnused(ctx);
 
         hf.width = width;
@@ -125,7 +131,8 @@ public static partial class Recast {
         return true;
     }
 
-    public static void calcTriNormal(float[] v0, float[] v1, float[] v2, float[] norm) {
+    public static void calcTriNormal(float[] v0, float[] v1, float[] v2, float[] norm)
+    {
         float[] e0 = new float[3];
         float[] e1 = new float[3];
         rcVsub(e0, v1, v0);
@@ -134,7 +141,8 @@ public static partial class Recast {
         rcVnormalize(norm);
     }
 
-    public static void calcTriNormal(float[] v0, int v0Start, float[] v1, int v1Start, float[] v2, int v2Start, float[] norm) {
+    public static void calcTriNormal(float[] v0, int v0Start, float[] v1, int v1Start, float[] v2, int v2Start, float[] norm)
+    {
         float[] e0 = new float[3];
         float[] e1 = new float[3];
         rcVsub(e0, 0, v1, v1Start, v0, v0Start);
@@ -154,14 +162,16 @@ public static partial class Recast {
     public static void rcMarkWalkableTriangles(rcContext ctx, float walkableSlopeAngle,
                                  float[] verts, int nv,
                                  int[] tris, int nt,
-                                 byte[] areas) {
+                                 byte[] areas)
+    {
         rcIgnoreUnused(ctx);
 
         float walkableThr = (float)Math.Cos(walkableSlopeAngle / 180.0f * RC_PI);
 
         float[] norm = new float[3];
 
-        for (int i = 0; i < nt; ++i) {
+        for (int i = 0; i < nt; ++i)
+        {
             int triStart = i * 3;
             calcTriNormal(verts, tris[triStart + 0] * 3, verts, tris[triStart + 1] * 3, verts, tris[triStart + 2] * 3, norm);
             // Check if the face is walkable.
@@ -181,14 +191,16 @@ public static partial class Recast {
     public static void rcClearUnwalkableTriangles(rcContext ctx, float walkableSlopeAngle,
                                     float[] verts, int nv,
                                     int[] tris, int nt,
-                                    byte[] areas) {
+                                    byte[] areas)
+    {
         rcIgnoreUnused(ctx);
 
         float walkableThr = (float)Math.Cos(walkableSlopeAngle / 180.0f * RC_PI);
 
         float[] norm = new float[3];
 
-        for (int i = 0; i < nt; ++i) {
+        for (int i = 0; i < nt; ++i)
+        {
             int triStart = i * 3;
             calcTriNormal(verts, tris[triStart + 0] * 3, verts, tris[triStart + 1] * 3, verts, tris[triStart + 2] * 3, norm);
             // Check if the face is walkable.
@@ -197,15 +209,19 @@ public static partial class Recast {
         }
     }
 
-    public static int rcGetHeightFieldSpanCount(rcContext ctx, rcHeightfield hf) {
+    public static int rcGetHeightFieldSpanCount(rcContext ctx, rcHeightfield hf)
+    {
         rcIgnoreUnused(ctx);
 
         int w = hf.width;
         int h = hf.height;
         int spanCount = 0;
-        for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
-                for (rcSpan s = hf.spans[x + y * w]; s != null; s = s.next) {
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                for (rcSpan s = hf.spans[x + y * w]; s != null; s = s.next)
+                {
                     if (s.area != RC_NULL_AREA)
                         spanCount++;
                 }
@@ -214,8 +230,10 @@ public static partial class Recast {
         return spanCount;
     }
 
-    public static void rccsArrayItemsCreate<T>(T[] array) where T : class, new() {
-        for (int i = 0; i < array.Length; ++i) {
+    public static void rccsArrayItemsCreate<T>(T[] array) where T : class, new()
+    {
+        for (int i = 0; i < array.Length; ++i)
+        {
             array[i] = new T();
         }
     }
@@ -230,7 +248,8 @@ public static partial class Recast {
     ///
     /// @see rcAllocCompactHeightfield, rcHeightfield, rcCompactHeightfield, rcConfig
     public static bool rcBuildCompactHeightfield(rcContext ctx, int walkableHeight, int walkableClimb,
-                                   rcHeightfield hf, rcCompactHeightfield chf) {
+                                   rcHeightfield hf, rcCompactHeightfield chf)
+    {
         Debug.Assert(ctx != null, "rcBuildCompactHeightfield Assert(ctx != null)");
 
         ctx.startTimer(rcTimerLabel.RC_TIMER_BUILD_COMPACTHEIGHTFIELD);
@@ -254,17 +273,20 @@ public static partial class Recast {
         chf.cells = new rcCompactCell[w * h];
         //chf.cells = (rcCompactCell*)rcAlloc(sizeof(rcCompactCell)*w*h, RC_ALLOC_PERM);
 
-        if (chf.cells == null) {
+        if (chf.cells == null)
+        {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildCompactHeightfield: Out of memory 'chf.cells' (" + (w * h) + ")");
             return false;
         }
         chf.spans = new rcCompactSpan[spanCount];// (rcCompactSpan*)rcAlloc(sizeof(rcCompactSpan)*spanCount, RC_ALLOC_PERM);
-        if (chf.spans == null) {
+        if (chf.spans == null)
+        {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildCompactHeightfield: Out of memory 'chf.spans' (" + spanCount + ")");
             return false;
         }
         chf.areas = new byte[spanCount]; //(byte*)rcAlloc(sizeof(byte)*spanCount, RC_ALLOC_PERM);
-        if (chf.areas == null) {
+        if (chf.areas == null)
+        {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildCompactHeightfield: Out of memory 'chf.areas' (" + spanCount + ")"); ;
             return false;
         }
@@ -273,43 +295,52 @@ public static partial class Recast {
 
         // Fill in cells and spans.
         int idx = 0;
-        for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
                 rcSpan s = hf.spans[x + y * w];
                 // If there are no spans at this cell, just leave the data to index=0, count=0.
-                if (s == null) {
+                if (s == null)
+                {
                     continue;
                 }
-				rcCompactCell c;// =  chf.cells[x + y * w];
+                rcCompactCell c;// =  chf.cells[x + y * w];
                 c.index = (uint)idx;
-				c.count = 0;
+                c.count = 0;
 
-                while (s != null) {
-                    if (s.area != RC_NULL_AREA) {
+                while (s != null)
+                {
+                    if (s.area != RC_NULL_AREA)
+                    {
                         int bot = (int)s.smax;
                         int top = s.next != null ? (int)s.next.smin : MAX_HEIGHT;
                         chf.spans[idx].y = (ushort)rcClamp(bot, 0, 0xffff);
                         chf.spans[idx].h = (byte)rcClamp(top - bot, 0, 0xff);
                         chf.areas[idx] = s.area;
                         idx++;
-						c.count++;
+                        c.count++;
                     }
                     s = s.next;
                 }
-				chf.cells[x + y * w] = c;
+                chf.cells[x + y * w] = c;
             }
         }
 
         // Find neighbour connections.
         int MAX_LAYERS = RC_NOT_CONNECTED - 1;
         int tooHighNeighbour = 0;
-        for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
                 rcCompactCell c = chf.cells[x + y * w];
-                for (int i = (int)c.index, ni = (int)(c.index + c.count); i < ni; ++i) {
-					rcCompactSpan s =  chf.spans[i];
+                for (int i = (int)c.index, ni = (int)(c.index + c.count); i < ni; ++i)
+                {
+                    rcCompactSpan s = chf.spans[i];
 
-                    for (int dir = 0; dir < 4; ++dir) {
+                    for (int dir = 0; dir < 4; ++dir)
+                    {
                         rcSetCon(ref s, dir, RC_NOT_CONNECTED);
                         int nx = x + rcGetDirOffsetX(dir);
                         int ny = y + rcGetDirOffsetY(dir);
@@ -320,17 +351,20 @@ public static partial class Recast {
                         // Iterate over all neighbour spans and check if any of the is
                         // accessible from current cell.
                         rcCompactCell nc = chf.cells[nx + ny * w];
-                        for (int k = (int)nc.index, nk = (int)(nc.index + nc.count); k < nk; ++k) {
+                        for (int k = (int)nc.index, nk = (int)(nc.index + nc.count); k < nk; ++k)
+                        {
                             rcCompactSpan ns = chf.spans[k];
                             int bot = Math.Max(s.y, ns.y);
                             int top = Math.Min(s.y + s.h, ns.y + ns.h);
 
                             // Check that the gap between the spans is walkable,
                             // and that the climb height between the gaps is not too high.
-                            if ((top - bot) >= walkableHeight && Math.Abs((int)ns.y - (int)s.y) <= walkableClimb) {
+                            if ((top - bot) >= walkableHeight && Math.Abs((int)ns.y - (int)s.y) <= walkableClimb)
+                            {
                                 // Mark direction as walkable.
                                 int lidx = k - (int)nc.index;
-                                if (lidx < 0 || lidx > MAX_LAYERS) {
+                                if (lidx < 0 || lidx > MAX_LAYERS)
+                                {
                                     tooHighNeighbour = Math.Max(tooHighNeighbour, lidx);
                                     continue;
                                 }
@@ -338,15 +372,16 @@ public static partial class Recast {
                                 break;
                             }
                         }
-						
+
                     }
 
-					chf.spans[i] = s;
+                    chf.spans[i] = s;
                 }
             }
         }
 
-        if (tooHighNeighbour > MAX_LAYERS) {
+        if (tooHighNeighbour > MAX_LAYERS)
+        {
             ctx.log(rcLogCategory.RC_LOG_ERROR, "rcBuildCompactHeightfield: Heightfield has too many layers " + tooHighNeighbour + " (max: " + MAX_LAYERS + ")");
         }
 
@@ -405,7 +440,8 @@ public static partial class Recast {
     /// Provides an interface for optional logging and performance tracking of the Recast 
     /// build process.
     /// @ingroup recast
-    public class rcContext {
+    public class rcContext
+    {
 
         /// True if logging is enabled.
         bool m_logEnabled = true;
@@ -415,20 +451,24 @@ public static partial class Recast {
 
         /// Contructor.
         ///  @param[in]		state	TRUE if the logging and performance timers should be enabled.  [Default: true]
-        public rcContext(bool state = true) {
+        public rcContext(bool state = true)
+        {
             m_logEnabled = state;
             m_timerEnabled = state;
         }
 
         /// Enables or disables logging.
         ///  @param[in]		state	TRUE if logging should be enabled.
-        public void enableLog(bool state) {
+        public void enableLog(bool state)
+        {
             m_logEnabled = state;
         }
 
         /// Clears all log entries.
-        public void resetLog() {
-            if (m_logEnabled) {
+        public void resetLog()
+        {
+            if (m_logEnabled)
+            {
                 doResetLog();
             }
         }
@@ -437,8 +477,10 @@ public static partial class Recast {
         ///  @param[in]		category	The category of the message.
         ///  @param[in]		message		The message.
         //public void log(rcLogCategory category, string message);
-        public void log(rcLogCategory category, string message) {
-            if (!m_logEnabled) {
+        public void log(rcLogCategory category, string message)
+        {
+            if (!m_logEnabled)
+            {
                 return;
             }
 
@@ -447,29 +489,36 @@ public static partial class Recast {
 
         /// Enables or disables the performance timers.
         ///  @param[in]		state	TRUE if timers should be enabled.
-        public void enableTimer(bool state) {
+        public void enableTimer(bool state)
+        {
             m_timerEnabled = state;
         }
 
         /// Clears all peformance timers. (Resets all to unused.)
-        public void resetTimers() {
-            if (m_timerEnabled) {
+        public void resetTimers()
+        {
+            if (m_timerEnabled)
+            {
                 doResetTimers();
             }
         }
 
         /// Starts the specified performance timer.
         ///  @param	label	The category of timer.
-        public void startTimer(rcTimerLabel label) {
-            if (m_timerEnabled) {
+        public void startTimer(rcTimerLabel label)
+        {
+            if (m_timerEnabled)
+            {
                 doStartTimer(label);
             }
         }
 
         /// Stops the specified performance timer.
         ///  @param	label	The category of the timer.
-        public void stopTimer(rcTimerLabel label) {
-            if (m_timerEnabled) {
+        public void stopTimer(rcTimerLabel label)
+        {
+            if (m_timerEnabled)
+            {
                 doStopTimer(label);
             }
         }
@@ -477,10 +526,12 @@ public static partial class Recast {
         /// Returns the total accumulated time of the specified performance timer.
         ///  @param	label	The category of the timer.
         ///  @return The accumulated time of the timer, or -1 if timers are disabled or the timer has never been started.
-        public long getAccumulatedTime(rcTimerLabel label) {
+        public long getAccumulatedTime(rcTimerLabel label)
+        {
             return m_timerEnabled ? doGetAccumulatedTime(label) : -1;
         }
-        public double getAccumulatedTimeHiResolution(rcTimerLabel label) {
+        public double getAccumulatedTimeHiResolution(rcTimerLabel label)
+        {
             return m_timerEnabled ? doGetAccumulatedTimeHiResolution(label) : -1.0;
         }
 
@@ -491,27 +542,32 @@ public static partial class Recast {
         /// Logs a message.
         ///  @param[in]		category	The category of the message.
         ///  @param[in]		msg			The formatted message.
-        protected virtual void doLog(rcLogCategory category, string msg) { //int len unnecessary because c# string
+        protected virtual void doLog(rcLogCategory category, string msg)
+        { //int len unnecessary because c# string
         }
 
         /// Clears all timers. (Resets all to unused.)
-        protected virtual void doResetTimers() {
+        protected virtual void doResetTimers()
+        {
         }
 
         /// Starts the specified performance timer.
         ///  @param[in]		label	The category of timer.
-        protected virtual void doStartTimer(rcTimerLabel label) {
+        protected virtual void doStartTimer(rcTimerLabel label)
+        {
         }
 
         /// Stops the specified performance timer.
         ///  @param[in]		label	The category of the timer.
-        protected virtual void doStopTimer(rcTimerLabel label) {
+        protected virtual void doStopTimer(rcTimerLabel label)
+        {
         }
 
         /// Returns the total accumulated time of the specified performance timer.
         ///  @param[in]		label	The category of the timer.
         ///  @return The accumulated time of the timer, or -1 if timers are disabled or the timer has never been started.
-        protected virtual long doGetAccumulatedTime(rcTimerLabel label) {
+        protected virtual long doGetAccumulatedTime(rcTimerLabel label)
+        {
             return -1;
         }
 
@@ -519,7 +575,8 @@ public static partial class Recast {
         /// Returns the total accumulated time of the specified performance timer.
         ///  @param[in]		label	The category of the timer.
         ///  @return The accumulated time of the timer, or -1 if timers are disabled or the timer has never been started.
-        protected virtual double doGetAccumulatedTimeHiResolution(rcTimerLabel label) {
+        protected virtual double doGetAccumulatedTimeHiResolution(rcTimerLabel label)
+        {
             return -1.0;
         }
 
@@ -599,7 +656,7 @@ public static partial class Recast {
 
         /// The maximum distance a simplfied contour's border edges should deviate 
         /// the original raw contour. [Limit: >=0] [Units: vx]
-        public float maxSimplificationError;
+        public double maxSimplificationError;
 
         /// The minimum number of cells allowed to form isolated island areas. [Limit: >=0] [Units: vx] 
         public int minRegionArea;
@@ -625,7 +682,8 @@ public static partial class Recast {
 
     /// Represents a span in a heightfield.
     /// @see rcHeightfield
-    public class rcSpan {
+    public class rcSpan
+    {
         public ushort smin;// : 13;			//< The lower limit of the span. [Limit: < #smax]
         public ushort smax;// : 13;			//< The upper limit of the span. [Limit: <= #RC_SPAN_MAX_HEIGHT]
         public byte area;// : 6;			//< The area id assigned to the span.
@@ -634,12 +692,15 @@ public static partial class Recast {
     // A memory pool used for quick allocation of spans within a heightfield.
     // @see rcHeightfield
 
-    public class rcSpanPool {
+    public class rcSpanPool
+    {
         public rcSpanPool next = null;					//< The next span pool.
         public rcSpan[] items = new rcSpan[RC_SPANS_PER_POOL];	//< Array of spans in the pool.
         ///
-        public rcSpanPool() {
-            for (int i = 0; i < items.Length; ++i) {
+        public rcSpanPool()
+        {
+            for (int i = 0; i < items.Length; ++i)
+            {
                 items[i] = new rcSpan();
             }
         }
@@ -647,7 +708,8 @@ public static partial class Recast {
 
     /// A dynamic heightfield representing obstructed space.
     /// @ingroup recast
-    public class rcHeightfield {
+    public class rcHeightfield
+    {
         public int width;			//< The width of the heightfield. (Along the x-axis in cell units.)
         public int height;			//< The height of the heightfield. (Along the z-axis in cell units.)
         public float[] bmin = new float[3];  	//< The minimum bounds in world space. [(x, y, z)]
@@ -660,13 +722,15 @@ public static partial class Recast {
     };
 
     /// Provides information on the content of a cell column in a compact heightfield. 
-    public struct rcCompactCell {
+    public struct rcCompactCell
+    {
         public uint index;// : 24;	//< Index to the first span in the column.
         public ushort count;// : 8;		//< Number of spans in the column.
     };
 
     /// Represents a span of unobstructed space within a compact heightfield.
-    public struct rcCompactSpan {
+    public struct rcCompactSpan
+    {
         public ushort y;			//< The lower extent of the span. (Measured from the heightfield's base.)
         public ushort reg;			//< The id of the region the span belongs to. (Or zero if not in a region.)
         public uint con;// : 24;		//< Packed neighbor connection data.
@@ -675,7 +739,8 @@ public static partial class Recast {
 
     /// A compact, static heightfield representing unobstructed space.
     /// @ingroup recast
-    public class rcCompactHeightfield {
+    public class rcCompactHeightfield
+    {
         public int width;					//< The width of the heightfield. (Along the x-axis in cell units.)
         public int height;					//< The height of the heightfield. (Along the z-axis in cell units.)
         public int spanCount;				//< The number of spans in the heightfield.
@@ -696,7 +761,8 @@ public static partial class Recast {
 
     /// Represents a heightfield layer within a layer set.
     /// @see rcHeightfieldLayerSet
-    public class rcHeightfieldLayer {
+    public class rcHeightfieldLayer
+    {
         public float[] bmin = new float[3];				//< The minimum bounds in world space. [(x, y, z)]
         public float[] bmax = new float[3];				//< The maximum bounds in world space. [(x, y, z)]
         public float cs;					//< The size of each cell. (On the xz-plane.)
@@ -717,13 +783,15 @@ public static partial class Recast {
     /// Represents a set of heightfield layers.
     /// @ingroup recast
     /// @see rcAllocHeightfieldLayerSet, rcFreeHeightfieldLayerSet 
-    public class rcHeightfieldLayerSet {
+    public class rcHeightfieldLayerSet
+    {
         public rcHeightfieldLayer[] layers = null;			//< The layers in the set. [Size: #nlayers]
         public int nlayers;						//< The number of layers in the set.
     };
 
     /// Represents a simple, non-overlapping contour in field space.
-    public struct rcContour {
+    public class rcContour
+    {
         public int[] verts;			//< Simplified contour vertex and connection data. [Size: 4 * #nverts]
         public int nverts;			//< The number of vertices in the simplified contour. 
         public int[] rverts;		//< Raw contour vertex and connection data. [Size: 4 * #nrverts]
@@ -731,41 +799,48 @@ public static partial class Recast {
         public ushort reg;	//< The region id of the contour.
         public byte area;	//< The area id of the contour.
         ///
-        public void dumpToTxt(StreamWriter stream) {
+        public void dumpToTxt(StreamWriter stream)
+        {
             stream.WriteLine("\treg: " + reg);
             stream.WriteLine("\tarea: " + area);
             stream.WriteLine("\tnverts: " + nverts);
-            for (int i = 0; i < nverts; ++i) {
+            for (int i = 0; i < nverts; ++i)
+            {
                 int vIndex = i * 4;
                 stream.WriteLine("\t\tverts[" + i + "]: x:" + verts[vIndex] + " y:" + verts[vIndex + 1] + " z:" + verts[vIndex + 2] + " ?:" + verts[vIndex + 3]);
             }
             stream.WriteLine("\tnrverts: " + nrverts);
-            for (int i = 0; i < nrverts; ++i) {
+            for (int i = 0; i < nrverts; ++i)
+            {
                 int vIndex = i * 4;
                 stream.WriteLine("\t\trverts[" + i + "]: x:" + rverts[vIndex] + " y:" + rverts[vIndex + 1] + " z:" + rverts[vIndex + 2] + " ?:" + rverts[vIndex + 3]);
             }
         }
-		public string dumpToString() {
-			StringBuilder sb = new StringBuilder();
-			sb.AppendLine("\treg: " + reg);
-			sb.AppendLine("\tarea: " + area);
-			sb.AppendLine("\tnverts: " + nverts);
-			for (int i = 0; i < nverts; ++i) {
-				int vIndex = i * 4;
-				sb.AppendLine("\t\tverts[" + i + "]: x:" + verts[vIndex] + " y:" + verts[vIndex + 1] + " z:" + verts[vIndex + 2] + " ?:" + verts[vIndex + 3]);
-			}
-			sb.AppendLine("\tnrverts: " + nrverts);
-			for (int i = 0; i < nrverts; ++i) {
-				int vIndex = i * 4;
-				sb.AppendLine("\t\trverts[" + i + "]: x:" + rverts[vIndex] + " y:" + rverts[vIndex + 1] + " z:" + rverts[vIndex + 2] + " ?:" + rverts[vIndex + 3]);
-			}
-			return sb.ToString();
-		}
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("\treg: " + reg);
+            sb.AppendLine("\tarea: " + area);
+            sb.AppendLine("\tnverts: " + nverts);
+            for (int i = 0; i < nverts; ++i)
+            {
+                int vIndex = i * 4;
+                sb.AppendLine("\t\tverts[" + i + "]: x:" + verts[vIndex] + " y:" + verts[vIndex + 1] + " z:" + verts[vIndex + 2] + " ?:" + verts[vIndex + 3]);
+            }
+            sb.AppendLine("\tnrverts: " + nrverts);
+            for (int i = 0; i < nrverts; ++i)
+            {
+                int vIndex = i * 4;
+                sb.AppendLine("\t\trverts[" + i + "]: x:" + rverts[vIndex] + " y:" + rverts[vIndex + 1] + " z:" + rverts[vIndex + 2] + " ?:" + rverts[vIndex + 3]);
+            }
+            return sb.ToString();
+        }
     };
 
     /// Represents a group of related contours.
     /// @ingroup recast
-    public class rcContourSet {
+    public class rcContourSet
+    {
         public rcContour[] conts = null;	//< An array of the contours in the set. [Size: #nconts]
         public int nconts;			//< The number of contours in the set.
         public float[] bmin = new float[3];  	//< The minimum bounds in world space. [(x, y, z)]
@@ -774,32 +849,37 @@ public static partial class Recast {
         public float ch;			//< The height of each cell. (The minimum increment along the y-axis.)
         public int width;			//< The width of the set. (Along the x-axis in cell units.) 
         public int height;			//< The height of the set. (Along the z-axis in cell units.) 
-        public int borderSize;		//< The AABB border size used to generate the source data from which the contours were derived.
-        ///
-		public override string ToString() {
-			StringBuilder sb = new StringBuilder();
-			
-			sb.AppendLine("nconts: " + nconts);
-			sb.AppendLine("bmin: " + bmin[0] + " " + bmin[1] + " " + bmin[2]);
-			sb.AppendLine("bmax: " + bmax[0] + " " + bmax[1] + " " + bmax[2]);
-			sb.AppendLine("cs: " + cs);
-			sb.AppendLine("ch: " + ch);
-			sb.AppendLine("width: " + width);
-			sb.AppendLine("height: " + height);
-			sb.AppendLine("bordersize: " + borderSize);
-			
-			for (int i = 0; i < nconts; ++i) {
-				sb.Append("contour[" + i + "]: ");
-				sb.AppendLine(conts[i].ToString());
-			}
-			
-			return sb.ToString();
-		}
+        public int borderSize;      //< The AABB border size used to generate the source data from which the contours were derived.
+        public float maxError;     //< The max edge error that this contour set was simplified with.
+
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("nconts: " + nconts);
+            sb.AppendLine("bmin: " + bmin[0] + " " + bmin[1] + " " + bmin[2]);
+            sb.AppendLine("bmax: " + bmax[0] + " " + bmax[1] + " " + bmax[2]);
+            sb.AppendLine("cs: " + cs);
+            sb.AppendLine("ch: " + ch);
+            sb.AppendLine("width: " + width);
+            sb.AppendLine("height: " + height);
+            sb.AppendLine("bordersize: " + borderSize);
+            sb.AppendLine("maxError: " + maxError);
+
+            for (int i = 0; i < nconts; ++i)
+            {
+                sb.Append("contour[" + i + "]: ");
+                sb.AppendLine(conts[i].ToString());
+            }
+
+            return sb.ToString();
+        }
     };
 
     /// Represents a polygon mesh suitable for use in building a navigation mesh. 
     /// @ingroup recast
-    public class rcPolyMesh {
+    public class rcPolyMesh
+    {
         public ushort[] verts = null;	//< The mesh vertices. [Form: (x, y, z) * #nverts]
         public ushort[] polys = null;	//< Polygon and neighbor data. [Length: #maxpolys * 2 * #nvp]
         public ushort[] regs = null;	//< The region id assigned to each polygon. [Length: #maxpolys]
@@ -813,234 +893,177 @@ public static partial class Recast {
         public float[] bmax = new float[3];			//< The maximum bounds in world space. [(x, y, z)]
         public float cs;				//< The size of each cell. (On the xz-plane.)
         public float ch;				//< The height of each cell. (The minimum increment along the y-axis.)
-        public int borderSize;			//< The AABB border size used to generate the source data from which the mesh was derived.
-        ///
-		public override string ToString() {
-			StringBuilder sb = new StringBuilder();
-			
-			sb.AppendLine("bmin: " + bmin[0] + " " + bmin[1] + " " + bmin[2]);
-			sb.AppendLine("bmax: " + bmax[0] + " " + bmax[1] + " " + bmax[2]);
-			sb.AppendLine("cs: " + cs);
-			sb.AppendLine("ch: " + ch);
-			sb.AppendLine("bordersize: " + borderSize);
-			
-			sb.AppendLine("nverts: " + nverts);
-			for (int i = 0; i < nverts; ++i) {
-				int vIndex = i * 3;
-				sb.AppendLine("\tverts[" + i + "]: x:" + verts[vIndex] + " y:" + verts[vIndex + 1] + " z:" + verts[vIndex + 2]);
-			}
-			sb.AppendLine("\tmaxpolys: " + maxpolys);
-			sb.AppendLine("\tnvp: " + nvp);
-			sb.AppendLine("\tnpolys: " + npolys);
-			for (int i = 0; i < maxpolys; ++i) {
-				int vIndex = i * nvp;
-				sb.Append("\t\tpolys[" + i + "]: ");
-				for (int j = 0; j < nvp; ++j) {
-					sb.Append(" " + j + ":" + polys[vIndex + j]);
-				}
-				
-				vIndex += nvp;
-				sb.AppendLine();
-				sb.Append("\t\tneighbor[" + i + "]: ");
-				for (int j = 0; j < nvp; ++j) {
-					sb.Append(" " + j + ":" + polys[vIndex + j]);
-				}
-				sb.AppendLine();
-			}
-			
-			for (int i = 0; i < maxpolys; ++i) {
-				sb.AppendLine("regs[" + i + "]: " + regs[i]);
-			}
-			sb.AppendLine();
-			for (int i = 0; i < flags.Length; ++i) {
-				sb.AppendLine("flags[" + i + "]: " + flags[i]);
-			}
-			
-			return sb.ToString();
-		}
+        public int borderSize;          //< The AABB border size used to generate the source data from which the mesh was derived.
+        public float maxEdgeError;      //< The max error of the polygon edges in the mesh.
 
-		public string ToObj(){
-			StringBuilder sb = new StringBuilder();
-			
-			sb.AppendLine("# Recast Navmesh");
-			sb.AppendLine("o NavMesh");
-			
-			sb.AppendLine();
-			
-			for (int i = 0; i < nverts; ++i) {
-				//ushort* v = &pmesh.verts[i*3];
-				int vIndex = i * 3;
-				float x = bmin[0] + verts[vIndex + 0] * cs;
-				float y = bmin[1] + (verts[vIndex + 1] + 1) * ch + 0.1f;
-				float z = bmin[2] + verts[vIndex + 2] * cs;
-				//ioprintf(io, "v %f %f %f\n", x,y,z);
-				sb.AppendLine("v " + x + " " + y + " " + z);
-			}
-			
-			sb.AppendLine();
-			
-			for (int i = 0; i < npolys; ++i) {
-				//const unsigned short* p = &pmesh.polys[i*nvp*2];
-				int pIndex = i * nvp * 2;
-				for (int j = 2; j < nvp; ++j) {
-					if (polys[pIndex + j] == RC_MESH_NULL_IDX)
-						break;
-					//ioprintf(io, "f %d %d %d\n", p[0]+1, p[j-1]+1, p[j]+1); 
-					int a = polys[pIndex] + 1;
-					int b = polys[pIndex + j - 1] + 1;
-					int c = polys[pIndex + j] + 1;
-					sb.AppendLine("f " + a + " " + b + " " + c);
-				}
-			}
-			return sb.ToString ();
-		}
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("bmin: " + bmin[0] + " " + bmin[1] + " " + bmin[2]);
+            sb.AppendLine("bmax: " + bmax[0] + " " + bmax[1] + " " + bmax[2]);
+            sb.AppendLine("cs: " + cs);
+            sb.AppendLine("ch: " + ch);
+            sb.AppendLine("bordersize: " + borderSize);
+            sb.AppendLine("maxEdgeError: " + maxEdgeError);
+
+            sb.AppendLine("nverts: " + nverts);
+            for (int i = 0; i < nverts; ++i)
+            {
+                int vIndex = i * 3;
+                sb.AppendLine("\tverts[" + i + "]: x:" + verts[vIndex] + " y:" + verts[vIndex + 1] + " z:" + verts[vIndex + 2]);
+            }
+            sb.AppendLine("\tmaxpolys: " + maxpolys);
+            sb.AppendLine("\tnvp: " + nvp);
+            sb.AppendLine("\tnpolys: " + npolys);
+            for (int i = 0; i < maxpolys; ++i)
+            {
+                int vIndex = i * nvp;
+                sb.Append("\t\tpolys[" + i + "]: ");
+                for (int j = 0; j < nvp; ++j)
+                {
+                    sb.Append(" " + j + ":" + polys[vIndex + j]);
+                }
+
+                vIndex += nvp;
+                sb.AppendLine();
+                sb.Append("\t\tneighbor[" + i + "]: ");
+                for (int j = 0; j < nvp; ++j)
+                {
+                    sb.Append(" " + j + ":" + polys[vIndex + j]);
+                }
+                sb.AppendLine();
+            }
+
+            for (int i = 0; i < maxpolys; ++i)
+            {
+                sb.AppendLine("regs[" + i + "]: " + regs[i]);
+            }
+            sb.AppendLine();
+            for (int i = 0; i < flags.Length; ++i)
+            {
+                sb.AppendLine("flags[" + i + "]: " + flags[i]);
+            }
+
+            return sb.ToString();
+        }
+
+        public string ToObj()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("# Recast Navmesh");
+            sb.AppendLine("o NavMesh");
+
+            sb.AppendLine();
+
+            for (int i = 0; i < nverts; ++i)
+            {
+                //ushort* v = &pmesh.verts[i*3];
+                int vIndex = i * 3;
+                float x = bmin[0] + verts[vIndex + 0] * cs;
+                float y = bmin[1] + (verts[vIndex + 1] + 1) * ch + 0.1f;
+                float z = bmin[2] + verts[vIndex + 2] * cs;
+                //ioprintf(io, "v %f %f %f\n", x,y,z);
+                sb.AppendLine("v " + x + " " + y + " " + z);
+            }
+
+            sb.AppendLine();
+
+            for (int i = 0; i < npolys; ++i)
+            {
+                //const unsigned short* p = &pmesh.polys[i*nvp*2];
+                int pIndex = i * nvp * 2;
+                for (int j = 2; j < nvp; ++j)
+                {
+                    if (polys[pIndex + j] == RC_MESH_NULL_IDX)
+                        break;
+                    //ioprintf(io, "f %d %d %d\n", p[0]+1, p[j-1]+1, p[j]+1); 
+                    int a = polys[pIndex] + 1;
+                    int b = polys[pIndex + j - 1] + 1;
+                    int c = polys[pIndex + j] + 1;
+                    sb.AppendLine("f " + a + " " + b + " " + c);
+                }
+            }
+            return sb.ToString();
+        }
     };
 
     /// Contains triangle meshes that represent detailed height data associated 
     /// with the polygons in its associated polygon mesh object.
     /// @ingroup recast
-    public class rcPolyMeshDetail {
+    public class rcPolyMeshDetail
+    {
         public uint[] meshes = null;	//< The sub-mesh data. [Size: 4*#nmeshes] 
         public float[] verts = null;			//< The mesh vertices. [Size: 3*#nverts] 
         public byte[] tris = null;	//< The mesh triangles. [Size: 4*#ntris] 
         public int nmeshes;			//< The number of sub-meshes defined by #meshes.
         public int nverts;				//< The number of vertices in #verts.
-        public int ntris;				//< The number of triangles in #tris.
-        
-		public override string ToString()
-		{
-			StringBuilder sb = new StringBuilder();
+        public int ntris;               //< The number of triangles in #tris.
 
-			sb.AppendLine("nmeshes: " + nmeshes);
-			for (int i = 0; i < nmeshes; ++i) {
-				int vIndex = i * 4;
-				sb.AppendLine("\tmeshes[" + i + "]: a:" + meshes[vIndex] + " b:" + meshes[vIndex + 1] + " c:" + meshes[vIndex + 2] + " d:" + meshes[vIndex + 3]);
-			}
-			sb.AppendLine("nverts: " + nverts);
-			for (int i = 0; i < nverts; ++i) {
-				int vIndex = i * 3;
-				sb.AppendLine("\tverts[" + i + "]: x:" + verts[vIndex] + " y:" + verts[vIndex + 1] + " z:" + verts[vIndex + 2]);
-			}
-			sb.AppendLine("ntris: " + ntris);
-			for (int i = 0; i < ntris; ++i) {
-				int vIndex = i * 4;
-				sb.AppendLine("\ttris[" + i + "]: a:" + tris[vIndex] + " b:" + tris[vIndex + 1] + " c:" + tris[vIndex + 2] + " d:" + tris[vIndex + 3]);
-			}
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
 
-			return sb.ToString();
-		}
+            sb.AppendLine("nmeshes: " + nmeshes);
+            for (int i = 0; i < nmeshes; ++i)
+            {
+                int vIndex = i * 4;
+                sb.AppendLine("\tmeshes[" + i + "]: a:" + meshes[vIndex] + " b:" + meshes[vIndex + 1] + " c:" + meshes[vIndex + 2] + " d:" + meshes[vIndex + 3]);
+            }
+            sb.AppendLine("nverts: " + nverts);
+            for (int i = 0; i < nverts; ++i)
+            {
+                int vIndex = i * 3;
+                sb.AppendLine("\tverts[" + i + "]: x:" + verts[vIndex] + " y:" + verts[vIndex + 1] + " z:" + verts[vIndex + 2]);
+            }
+            sb.AppendLine("ntris: " + ntris);
+            for (int i = 0; i < ntris; ++i)
+            {
+                int vIndex = i * 4;
+                sb.AppendLine("\ttris[" + i + "]: a:" + tris[vIndex] + " b:" + tris[vIndex + 1] + " c:" + tris[vIndex + 2] + " d:" + tris[vIndex + 3]);
+            }
 
-		public string ToObj()
-		{
-			StringBuilder sb = new StringBuilder();
-			
-			sb.AppendLine("# Recast C# Navmesh\n");
-			sb.AppendLine("o NavMesh\n");
-			
-			sb.AppendLine("\n");
-			
-			for (int i = 0; i < nverts; ++i) {
-				int vIndex = i * 3;
-				sb.AppendLine("v " + verts[vIndex + 0] + " " + verts[vIndex + 1] + " " + verts[vIndex + 2]);
-			}
-			
-			sb.AppendLine();
-			
-			for (int i = 0; i < nmeshes; ++i) {
-				//uint* m = &dmesh.meshes[i*4];
-				int mIndex = i * 4;
-				uint bverts = meshes[mIndex + 0];
-				uint btris = meshes[mIndex + 2];
-				uint _ntris = meshes[mIndex + 3];
-				uint trisIndex = btris * 4;
-				for (uint j = 0; j < _ntris; ++j) {
-					sb.AppendLine("f "
-					                 + ((int)(bverts + tris[trisIndex + j * 4 + 0]) + 1) + " "
-					                 + ((int)(bverts + tris[trisIndex + j * 4 + 1]) + 1) + " "
-					                 + ((int)(bverts + tris[trisIndex + j * 4 + 2]) + 1) + " ");
-				}
-			}
-			
-			return sb.ToString();
-		}
+            return sb.ToString();
+        }
+
+        public string ToObj()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("# Recast C# Navmesh\n");
+            sb.AppendLine("o NavMesh\n");
+
+            sb.AppendLine("\n");
+
+            for (int i = 0; i < nverts; ++i)
+            {
+                int vIndex = i * 3;
+                sb.AppendLine("v " + verts[vIndex + 0] + " " + verts[vIndex + 1] + " " + verts[vIndex + 2]);
+            }
+
+            sb.AppendLine();
+
+            for (int i = 0; i < nmeshes; ++i)
+            {
+                //uint* m = &dmesh.meshes[i*4];
+                int mIndex = i * 4;
+                uint bverts = meshes[mIndex + 0];
+                uint btris = meshes[mIndex + 2];
+                uint _ntris = meshes[mIndex + 3];
+                uint trisIndex = btris * 4;
+                for (uint j = 0; j < _ntris; ++j)
+                {
+                    sb.AppendLine("f "
+                                     + ((int)(bverts + tris[trisIndex + j * 4 + 0]) + 1) + " "
+                                     + ((int)(bverts + tris[trisIndex + j * 4 + 1]) + 1) + " "
+                                     + ((int)(bverts + tris[trisIndex + j * 4 + 2]) + 1) + " ");
+                }
+            }
+
+            return sb.ToString();
+        }
     };
-
-    /// @name Allocation Functions
-    /// Functions used to allocate and de-allocate Recast objects.
-    /// @see rcAllocSetCustom
-    /// @{
-
-    /// Allocates a heightfield object using the Recast allocator.
-    ///  @return A heightfield that is ready for initialization, or null on failure.
-    ///  @ingroup recast
-    ///  @see rcCreateHeightfield, rcFreeHeightField
-    //rcHeightfield* rcAllocHeightfield();
-
-    /// Frees the specified heightfield object using the Recast allocator.
-    ///  @param[in]		hf	A heightfield allocated using #rcAllocHeightfield
-    ///  @ingroup recast
-    ///  @see rcAllocHeightfield
-    //void rcFreeHeightField(rcHeightfield* hf);
-
-    /// Allocates a compact heightfield object using the Recast allocator.
-    ///  @return A compact heightfield that is ready for initialization, or null on failure.
-    ///  @ingroup recast
-    ///  @see rcBuildCompactHeightfield, rcFreeCompactHeightfield
-    //rcCompactHeightfield* rcAllocCompactHeightfield();
-
-    /// Frees the specified compact heightfield object using the Recast allocator.
-    ///  @param[in]		chf		A compact heightfield allocated using #rcAllocCompactHeightfield
-    ///  @ingroup recast
-    ///  @see rcAllocCompactHeightfield
-    //void rcFreeCompactHeightfield(rcCompactHeightfield* chf);
-
-    /// Allocates a heightfield layer set using the Recast allocator.
-    ///  @return A heightfield layer set that is ready for initialization, or null on failure.
-    ///  @ingroup recast
-    ///  @see rcBuildHeightfieldLayers, rcFreeHeightfieldLayerSet
-    //rcHeightfieldLayerSet* rcAllocHeightfieldLayerSet();
-
-    /// Frees the specified heightfield layer set using the Recast allocator.
-    ///  @param[in]		lset	A heightfield layer set allocated using #rcAllocHeightfieldLayerSet
-    ///  @ingroup recast
-    ///  @see rcAllocHeightfieldLayerSet
-    //void rcFreeHeightfieldLayerSet(rcHeightfieldLayerSet* lset);
-
-    /// Allocates a contour set object using the Recast allocator.
-    ///  @return A contour set that is ready for initialization, or null on failure.
-    ///  @ingroup recast
-    ///  @see rcBuildContours, rcFreeContourSet
-    //rcContourSet* rcAllocContourSet();
-
-    /// Frees the specified contour set using the Recast allocator.
-    ///  @param[in]		cset	A contour set allocated using #rcAllocContourSet
-    ///  @ingroup recast
-    ///  @see rcAllocContourSet
-    //void rcFreeContourSet(rcContourSet* cset);
-
-    /// Allocates a polygon mesh object using the Recast allocator.
-    ///  @return A polygon mesh that is ready for initialization, or null on failure.
-    ///  @ingroup recast
-    ///  @see rcBuildPolyMesh, rcFreePolyMesh
-    //rcPolyMesh* rcAllocPolyMesh();
-
-    /// Frees the specified polygon mesh using the Recast allocator.
-    ///  @param[in]		pmesh	A polygon mesh allocated using #rcAllocPolyMesh
-    ///  @ingroup recast
-    ///  @see rcAllocPolyMesh
-    //void rcFreePolyMesh(rcPolyMesh* pmesh);
-
-    /// Allocates a detail mesh object using the Recast allocator.
-    ///  @return A detail mesh that is ready for initialization, or null on failure.
-    ///  @ingroup recast
-    ///  @see rcBuildPolyMeshDetail, rcFreePolyMeshDetail
-    //rcPolyMeshDetail* rcAllocPolyMeshDetail();
-
-    /// Frees the specified detail mesh using the Recast allocator.
-    ///  @param[in]		dmesh	A detail mesh allocated using #rcAllocPolyMeshDetail
-    ///  @ingroup recast
-    ///  @see rcAllocPolyMeshDetail
-    //void rcFreePolyMeshDetail(rcPolyMeshDetail* dmesh);
 
     /// The number of spans allocated per span spool.
     /// @see rcSpanPool
@@ -1051,7 +1074,6 @@ public static partial class Recast {
     /// region and its spans are considered unwalkable.
     /// (Used during the region and contour build process.)
     /// @see rcCompactSpan::reg
-
     public const ushort RC_BORDER_REG = 0x8000;
 
     /// Polygon touches multiple regions.
@@ -1080,7 +1102,8 @@ public static partial class Recast {
 
     /// Contour build flags.
     /// @see rcBuildContours
-    public enum rcBuildContoursFlags {
+    public enum rcBuildContoursFlags
+    {
         RC_CONTOUR_TESS_WALL_EDGES = 0x01,	//< Tessellate solid (impassable) edges during contour simplification.
         RC_CONTOUR_TESS_AREA_EDGES = 0x02,	//< Tessellate edges between areas during contour simplification.
     };
@@ -1123,7 +1146,8 @@ public static partial class Recast {
     ///  @param[in,out]	a	Value A
     ///  @param[in,out]	b	Value B
     //public void rcSwap<T>(T a, T b) { T t = a; a = b; b = t; }
-    static void rcSwap<T>(ref T lhs, ref T rhs) {
+    static void rcSwap<T>(ref T lhs, ref T rhs)
+    {
         T temp = lhs;
         lhs = rhs;
         rhs = temp;
@@ -1159,7 +1183,8 @@ public static partial class Recast {
     ///  @param[in]		mx	The maximum permitted return value.
     ///  @return The value, clamped to the specified range.
     //template<class T> inline T rcClamp(T v, T mn, T mx) { return v < mn ? mn : (v > mx ? mx : v); }
-    public static int rcClamp(int v, int mn, int mx) {
+    public static int rcClamp(int v, int mn, int mx)
+    {
         return v < mn ? mn : (v > mx ? mx : v);
     }
 
@@ -1177,12 +1202,14 @@ public static partial class Recast {
     ///  @param[in]		v1		A Vector [(x, y, z)]
     ///  @param[in]		v2		A vector [(x, y, z)]
 
-    public static void rcVcross(float[] dest, float[] v1, float[] v2) {
+    public static void rcVcross(float[] dest, float[] v1, float[] v2)
+    {
         dest[0] = v1[1] * v2[2] - v1[2] * v2[1];
         dest[1] = v1[2] * v2[0] - v1[0] * v2[2];
         dest[2] = v1[0] * v2[1] - v1[1] * v2[0];
     }
-    public static void rcVcross(float[] dest, int destStart, float[] v1, int v1Start, float[] v2, int v2Start) {
+    public static void rcVcross(float[] dest, int destStart, float[] v1, int v1Start, float[] v2, int v2Start)
+    {
         dest[destStart + 0] = v1[v1Start + 1] * v2[v2Start + 2] - v1[v1Start + 2] * v2[v2Start + 1];
         dest[destStart + 1] = v1[v1Start + 2] * v2[v2Start + 0] - v1[v1Start + 0] * v2[v2Start + 2];
         dest[destStart + 2] = v1[v1Start + 0] * v2[v2Start + 1] - v1[v1Start + 1] * v2[v2Start + 0];
@@ -1192,7 +1219,8 @@ public static partial class Recast {
     ///  @param[in]		v1	A Vector [(x, y, z)]
     ///  @param[in]		v2	A vector [(x, y, z)]
     /// @return The dot product.
-    public static float rcVdot(float[] v1, float[] v2) {
+    public static float rcVdot(float[] v1, float[] v2)
+    {
         return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
     }
 
@@ -1201,7 +1229,8 @@ public static partial class Recast {
     ///  @param[in]		v1		The base vector. [(x, y, z)]
     ///  @param[in]		v2		The vector to scale and add to @p v1. [(x, y, z)]
     ///  @param[in]		s		The amount to scale @p v2 by before adding to @p v1.
-    public static void rcVmad(float[] dest, float[] v1, float[] v2, float s) {
+    public static void rcVmad(float[] dest, float[] v1, float[] v2, float s)
+    {
         dest[0] = v1[0] + v2[0] * s;
         dest[1] = v1[1] + v2[1] * s;
         dest[2] = v1[2] + v2[2] * s;
@@ -1211,7 +1240,8 @@ public static partial class Recast {
     ///  @param[out]	dest	The result vector. [(x, y, z)]
     ///  @param[in]		v1		The base vector. [(x, y, z)]
     ///  @param[in]		v2		The vector to add to @p v1. [(x, y, z)]
-    public static void rcVadd(float[] dest, float[] v1, float[] v2) {
+    public static void rcVadd(float[] dest, float[] v1, float[] v2)
+    {
         dest[0] = v1[0] + v2[0];
         dest[1] = v1[1] + v2[1];
         dest[2] = v1[2] + v2[2];
@@ -1221,13 +1251,15 @@ public static partial class Recast {
     ///  @param[out]	dest	The result vector. [(x, y, z)]
     ///  @param[in]		v1		The base vector. [(x, y, z)]
     ///  @param[in]		v2		The vector to subtract from @p v1. [(x, y, z)]
-    public static void rcVsub(float[] dest, float[] v1, float[] v2) {
+    public static void rcVsub(float[] dest, float[] v1, float[] v2)
+    {
         dest[0] = v1[0] - v2[0];
         dest[1] = v1[1] - v2[1];
         dest[2] = v1[2] - v2[2];
     }
 
-    public static void rcVsub(float[] dest, int destStart, float[] v1, int v1Start, float[] v2, int v2Start) {
+    public static void rcVsub(float[] dest, int destStart, float[] v1, int v1Start, float[] v2, int v2Start)
+    {
         dest[destStart + 0] = v1[v1Start + 0] - v2[v2Start + 0];
         dest[destStart + 1] = v1[v1Start + 1] - v2[v2Start + 1];
         dest[destStart + 2] = v1[v1Start + 2] - v2[v2Start + 2];
@@ -1236,13 +1268,15 @@ public static partial class Recast {
     /// Selects the minimum value of each element from the specified vectors.
     ///  @param[in,out]	mn	A vector.  (Will be updated with the result.) [(x, y, z)]
     ///  @param[in]		v	A vector. [(x, y, z)]
-    public static void rcVmin(float[] mn, float[] v) {
+    public static void rcVmin(float[] mn, float[] v)
+    {
         mn[0] = Math.Min(mn[0], v[0]);
         mn[1] = Math.Min(mn[1], v[1]);
         mn[2] = Math.Min(mn[2], v[2]);
     }
 
-    public static void rcVmin(float[] mn, int mnStart, float[] v, int vStart) {
+    public static void rcVmin(float[] mn, int mnStart, float[] v, int vStart)
+    {
         mn[0 + mnStart] = Math.Min(mn[0 + mnStart], v[0 + vStart]);
         mn[1 + mnStart] = Math.Min(mn[1 + mnStart], v[1 + vStart]);
         mn[2 + mnStart] = Math.Min(mn[2 + mnStart], v[2 + vStart]);
@@ -1252,13 +1286,15 @@ public static partial class Recast {
     /// Selects the maximum value of each element from the specified vectors.
     ///  @param[in,out]	mx	A vector.  (Will be updated with the result.) [(x, y, z)]
     ///  @param[in]		v	A vector. [(x, y, z)]
-    public static void rcVmax(float[] mx, float[] v) {
+    public static void rcVmax(float[] mx, float[] v)
+    {
         mx[0] = Math.Max(mx[0], v[0]);
         mx[1] = Math.Max(mx[1], v[1]);
         mx[2] = Math.Max(mx[2], v[2]);
     }
 
-    public static void rcVmax(float[] mx, int mxStart, float[] v, int vStart) {
+    public static void rcVmax(float[] mx, int mxStart, float[] v, int vStart)
+    {
         mx[0 + mxStart] = Math.Max(mx[0 + mxStart], v[0 + vStart]);
         mx[1 + mxStart] = Math.Max(mx[1 + mxStart], v[1 + vStart]);
         mx[2 + mxStart] = Math.Max(mx[2 + mxStart], v[2 + vStart]);
@@ -1267,12 +1303,14 @@ public static partial class Recast {
     /// Performs a vector copy.
     ///  @param[out]	dest	The result. [(x, y, z)]
     ///  @param[in]		v		The vector to copy. [(x, y, z)]
-    public static void rcVcopy(float[] dest, float[] v) {
+    public static void rcVcopy(float[] dest, float[] v)
+    {
         dest[0] = v[0];
         dest[1] = v[1];
         dest[2] = v[2];
     }
-    public static void rcVcopy(float[] dest, int destStart, float[] v, int vStart) {
+    public static void rcVcopy(float[] dest, int destStart, float[] v, int vStart)
+    {
         dest[destStart + 0] = v[vStart + 0];
         dest[destStart + 1] = v[vStart + 1];
         dest[destStart + 2] = v[vStart + 2];
@@ -1282,7 +1320,8 @@ public static partial class Recast {
     ///  @param[in]		v1	A point. [(x, y, z)]
     ///  @param[in]		v2	A point. [(x, y, z)]
     /// @return The distance between the two points.
-    public static float rcVdist(float[] v1, float[] v2) {
+    public static float rcVdist(float[] v1, float[] v2)
+    {
         float dx = v2[0] - v1[0];
         float dy = v2[1] - v1[1];
         float dz = v2[2] - v1[2];
@@ -1293,7 +1332,8 @@ public static partial class Recast {
     ///  @param[in]		v1	A point. [(x, y, z)]
     ///  @param[in]		v2	A point. [(x, y, z)]
     /// @return The square of the distance between the two points.
-    public static float rcVdistSqr(float[] v1, float[] v2) {
+    public static float rcVdistSqr(float[] v1, float[] v2)
+    {
         float dx = v2[0] - v1[0];
         float dy = v2[1] - v1[1];
         float dz = v2[2] - v1[2];
@@ -1302,7 +1342,8 @@ public static partial class Recast {
 
     /// Normalizes the vector.
     ///  @param[in,out]	v	The vector to normalize. [(x, y, z)]
-    public static void rcVnormalize(float[] v) {
+    public static void rcVnormalize(float[] v)
+    {
         float d = 1.0f / (float)Math.Sqrt((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]));
         v[0] *= d;
         v[1] *= d;
@@ -1495,15 +1536,15 @@ public static partial class Recast {
     ///  @returns True if the operation completed successfully.
     //bool rcBuildCompactHeightfield(rcContext* ctx, const int walkableHeight, const int walkableClimb,
     //							   rcHeightfield& hf, rcCompactHeightfield& chf);
-	 
+
 
     /// Erodes the walkable area within the heightfield by the specified radius. 
     ///  @ingroup recast
     ///  @param[in,out]	ctx		The build context to use during the operation.
-	///  @param[in]		radius	The radius of erosion. [Limits: 0 < value < 255] [Units: vx]
+    ///  @param[in]		radius	The radius of erosion. [Limits: 0 < value < 255] [Units: vx]
     ///  @param[in,out]	chf		The populated compact heightfield to erode.
     ///  @returns True if the operation completed successfully.
-	//bool rcErodeWalkableArea(rcContext* ctx, int radius, rcCompactHeightfield& chf);
+    //bool rcErodeWalkableArea(rcContext* ctx, int radius, rcCompactHeightfield& chf);
 
     /// Applies a median filter to walkable area types (based on area id), removing noise.
     ///  @ingroup recast
@@ -1597,7 +1638,8 @@ public static partial class Recast {
     ///  @param[in]		s		The span to update.
     ///  @param[in]		dir		The direction to set. [Limits: 0 <= value < 4]
     ///  @param[in]		i		The index of the neighbor span.
-    public static void rcSetCon(ref rcCompactSpan s, int dir, int i) {
+    public static void rcSetCon(ref rcCompactSpan s, int dir, int i)
+    {
         uint udir = (uint)dir;
         int shift = (int)(udir * 6);
         uint con = s.con;
@@ -1609,7 +1651,8 @@ public static partial class Recast {
     ///  @param[in]		dir		The direction to check. [Limits: 0 <= value < 4]
     ///  @return The neighbor connection data for the specified direction,
     ///  	or #RC_NOT_CONNECTED if there is no connection.
-    public static int rcGetCon(rcCompactSpan s, int dir) {
+    public static int rcGetCon(rcCompactSpan s, int dir)
+    {
         uint udir = (uint)dir;
         int shift = (int)(udir * 6);
         return (int)((s.con >> shift) & 0x3f);
@@ -1619,7 +1662,8 @@ public static partial class Recast {
     ///  @param[in]		dir		The direction. [Limits: 0 <= value < 4]
     ///  @return The width offset to apply to the current cell position to move
     ///  	in the direction.
-    public static int rcGetDirOffsetX(int dir) {
+    public static int rcGetDirOffsetX(int dir)
+    {
         int[] offset = new int[] { -1, 0, 1, 0, };
         return offset[dir & 0x03];
     }
@@ -1628,9 +1672,20 @@ public static partial class Recast {
     ///  @param[in]		dir		The direction. [Limits: 0 <= value < 4]
     ///  @return The height offset to apply to the current cell position to move
     ///  	in the direction.
-    public static int rcGetDirOffsetY(int dir) {
+    public static int rcGetDirOffsetY(int dir)
+    {
         int[] offset = new int[] { 0, 1, 0, -1 };
         return offset[dir & 0x03];
+    }
+
+    /// Gets the direction for the specified offset. One of x and y should be 0.
+    ///  @param[in]		x		The x offset. [Limits: -1 <= value <= 1]
+    ///  @param[in]		y		The y offset. [Limits: -1 <= value <= 1]
+    ///  @return The direction that represents the offset.
+    public static int rcGetDirForOffset(int x, int y)
+    {
+        int[] dirs = { 3, 0, -1, 2, 1 };
+        return dirs[((y + 1) << 1) + x];
     }
 
     /// @}
@@ -1718,7 +1773,6 @@ public static partial class Recast {
     //bool rcMergePolyMeshDetails(rcContext* ctx, rcPolyMeshDetail** meshes, const int nmeshes, rcPolyMeshDetail& mesh);
 
     /// @}
-
 }
 
 ///////////////////////////////////////////////////////////////////////////

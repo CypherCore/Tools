@@ -15,12 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Constants;
+using DataExtractor.Framework.Constants;
 using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Framework.Collision
+namespace DataExtractor.Framework.Collision
 {
     public class StaticMapTree
     {

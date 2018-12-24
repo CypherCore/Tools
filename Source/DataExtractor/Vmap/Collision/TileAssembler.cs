@@ -15,9 +15,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Collision;
-using Framework.Constants;
-using Framework.GameMath;
+using DataExtractor.Framework.Collision;
+using DataExtractor.Framework.Constants;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -179,7 +179,7 @@ namespace DataExtractor.Vmap.Collision
 
         bool calculateTransformedBound(ModelSpawn spawn)
         {
-            string modelFilename = iSrcDir + spawn.name;
+            string modelFilename = iSrcDir + spawn.name.TrimEnd('\0');
 
             ModelPosition modelPosition = new ModelPosition();
             modelPosition.iDir = spawn.iRot;

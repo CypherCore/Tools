@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Constants;
-using Framework.GameMath;
+using DataExtractor.Framework.Constants;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -28,15 +28,15 @@ namespace DataExtractor.Vmap
     {
         public bool open(uint fileId)
         {
-            return Read(Program.cascHandler.ReadFile((int)fileId));
+            return Read(Program.CascHandler.OpenFile((int)fileId));
         }
 
         public bool open(string fileName)
         {
-            return Read(Program.cascHandler.ReadFile(fileName));
+            return Read(Program.CascHandler.OpenFile(fileName));
         }
 
-        public bool Read(MemoryStream stream)
+        public bool Read(Stream stream)
         {
             if (stream == null)
             {
@@ -134,14 +134,14 @@ namespace DataExtractor.Vmap
             if ((mapObjDef.Flags & 0x01) != 0)
                 return;
 
-            if (!File.Exists(Program.wmoDirectory + WmoInstName))
+            if (!File.Exists(Program.WmoDirectory + WmoInstName))
             {
                 Console.WriteLine($"WMOInstance.WMOInstance: couldn't open {WmoInstName}");
                 return;
             }
 
             //-----------add_in _dir_file----------------
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + WmoInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.WmoDirectory + WmoInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
                 int nVertices = binaryReader.ReadInt32();
@@ -231,7 +231,7 @@ namespace DataExtractor.Vmap
     {
         public bool open(uint fileId, WMORoot rootWmo)
         {
-            MemoryStream stream = Program.cascHandler.ReadFile((int)fileId);
+            Stream stream = Program.CascHandler.OpenFile((int)fileId);
             if (stream == null)
             {
                 Console.WriteLine("No such file.");

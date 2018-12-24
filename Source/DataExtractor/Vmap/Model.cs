@@ -1,5 +1,5 @@
-﻿using Framework.Constants;
-using Framework.GameMath;
+﻿using DataExtractor.Framework.Constants;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,7 +11,7 @@ namespace DataExtractor.Vmap
     {
         public bool open(string fileName)
         {
-            using (var stream = Program.cascHandler.ReadFile(fileName))
+            using (var stream = Program.CascHandler.OpenFile(fileName))
             {
                 if (stream == null)
                     return false;
@@ -22,7 +22,7 @@ namespace DataExtractor.Vmap
 
         public bool open(uint fileId)
         {
-            using (var stream = Program.cascHandler.ReadFile((int)fileId))
+            using (var stream = Program.CascHandler.OpenFile((int)fileId))
             {
                 if (stream == null)
                     return false;
@@ -31,7 +31,7 @@ namespace DataExtractor.Vmap
             }
         }
 
-        bool Read(MemoryStream stream)
+        bool Read(Stream stream)
         {
             using (BinaryReader reader = new BinaryReader(stream))
             {
@@ -147,10 +147,10 @@ namespace DataExtractor.Vmap
 
         public static void Extract(MDDF doodadDef, string ModelInstName, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
         {
-            if (!File.Exists(Program.wmoDirectory + ModelInstName))
+            if (!File.Exists(Program.WmoDirectory + ModelInstName))
                 return;
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.WmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
                 int nVertices = binaryReader.ReadInt32();
@@ -237,10 +237,10 @@ namespace DataExtractor.Vmap
                         }
                     }
 
-                    if (!File.Exists(Program.wmoDirectory + ModelInstName))
+                    if (!File.Exists(Program.WmoDirectory + ModelInstName))
                         continue;
 
-                    using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.wmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+                    using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.WmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
                     {
                         binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
                         int nVertices = binaryReader.ReadInt32();
@@ -274,10 +274,7 @@ namespace DataExtractor.Vmap
                     writer.Write(doodad.Scale);
                     writer.Write(ModelInstName.Length);
                     writer.WriteString(ModelInstName);
-                    if (ModelInstName.Contains("Twilightshammer_Hanginglamp"))
-                    {
 
-                    }
                     if (dirfileCache != null)
                     {
                         ADTOutputCache cacheModelData = new ADTOutputCache();

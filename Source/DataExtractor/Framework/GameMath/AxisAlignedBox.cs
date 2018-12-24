@@ -19,7 +19,7 @@ using System;
 using System.Runtime.Serialization;
 using System.Security.Permissions;
 
-namespace Framework.GameMath
+namespace DataExtractor.Framework.GameMath
 {
     /// <summary> 
     /// Represents an axis aligned box in 3D space. 
@@ -235,13 +235,13 @@ namespace Framework.GameMath
         {
             if (isEmpty())
             {
-                Lo = a.Lo;
-                Hi = a.Hi;
+                _lo = a.Lo;
+                _hi = a.Hi;
             }
             else if (!a.isEmpty())
             {
-                Lo = Lo.Min(a.Lo);
-                Hi = Hi.Max(a.Hi);
+                _lo = Lo.Min(a.Lo);
+                _hi = Hi.Max(a.Hi);
             }
         }
 

@@ -15,10 +15,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.GameMath;
+using DataExtractor.Framework.GameMath;
 using System.Collections.Generic;
 
-namespace Framework.Collision
+namespace DataExtractor.Framework.Collision
 {
     public class TriBoundFunc
     {

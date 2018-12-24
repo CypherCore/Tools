@@ -15,12 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Constants;
-using Framework.GameMath;
+using DataExtractor.Framework.Constants;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.IO;
 
-namespace Framework.Collision
+namespace DataExtractor.Framework.Collision
 {
     public class ModelSpawn
     {
@@ -45,14 +45,14 @@ namespace Framework.Collision
             spawn.flags = reader.ReadUInt32();
             spawn.adtId = reader.ReadUInt16();
             spawn.ID = reader.ReadUInt32();
-            spawn.iPos = reader.Read<Vector3>();
-            spawn.iRot = reader.Read<Vector3>();
+            spawn.iPos = reader.ReadVector3();
+            spawn.iRot = reader.ReadVector3();
             spawn.iScale = reader.ReadSingle();
 
             if ((spawn.flags & ModelFlags.HasBound) != 0) // only WMOs have bound in MPQ, only available after computation
             {
-                Vector3 bLow = reader.Read<Vector3>();
-                Vector3 bHigh = reader.Read<Vector3>();
+                Vector3 bLow = reader.ReadVector3();
+                Vector3 bHigh = reader.ReadVector3();
                 spawn.iBound = new AxisAlignedBox(bLow, bHigh);
             }
 

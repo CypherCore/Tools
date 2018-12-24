@@ -27,7 +27,6 @@ public static partial class Recast{
 	    {
 		    // Create new page.
 		    // Allocate memory for the new pool.
-		    //rcSpanPool* pool = (rcSpanPool*)rcAlloc(sizeof(rcSpanPool), RC_ALLOC_PERM);
             rcSpanPool pool = new rcSpanPool();
 		    if (pool == null) 
                 return null;
@@ -104,17 +103,16 @@ public static partial class Recast{
 		    }
 		    else
 		    {
+			    // Merge flags.
+			    if (Math.Abs((int)s.smax - (int)cur.smax) <= flagMergeThr)
+				    s.area = Math.Max(s.area, cur.area);
+
 			    // Merge spans.
 			    if (cur.smin < s.smin)
 				    s.smin = cur.smin;
 			    if (cur.smax > s.smax)
 				    s.smax = cur.smax;
-			
-			    // Merge flags.
-			    if (Math.Abs((int)s.smax - (int)cur.smax) <= flagMergeThr){
-				    s.area = Math.Max(s.area, cur.area);
-                }
-			
+                
 			    // Remove current span.
 			    rcSpan next = cur.next;
 			    freeSpan(hf, cur);
@@ -214,114 +212,115 @@ public static partial class Recast{
 
 
     static void rasterizeTri(float[] v0, int v0Start, float[] v1, int v1Start, float[] v2, int v2Start,
-						     byte area, rcHeightfield hf,
-						     float[] bmin, float[] bmax,
-						     float cs, float ics, float ich,
-						     int flagMergeThr)
+                             byte area, rcHeightfield hf,
+                             float[] bmin, float[] bmax,
+                             float cs, float ics, float ich,
+                             int flagMergeThr)
     {
-	    int w = hf.width;
-	    int h = hf.height;
-	    float[] tmin = new float[3];
+        int w = hf.width;
+        int h = hf.height;
+        float[] tmin = new float[3];
         float[] tmax = new float[3];
-	    float by = bmax[1] - bmin[1];
-	
-	    // Calculate the bounding box of the triangle.
-	    rcVcopy(tmin, 0, v0, v0Start);
+        float by = bmax[1] - bmin[1];
+
+        // Calculate the bounding box of the triangle.
+        rcVcopy(tmin, 0, v0, v0Start);
         rcVcopy(tmax, 0, v0, v0Start);
-	    rcVmin(tmin, 0, v1, v1Start);
-	    rcVmin(tmin, 0, v2, v2Start);
-	    rcVmax(tmax, 0, v1, v1Start);
-	    rcVmax(tmax, 0, v2, v2Start);
-	
-	    // If the triangle does not touch the bbox of the heightfield, skip the triagle.
-	    if (!overlapBounds(bmin, bmax, tmin, tmax))
-		    return;
-	
-	    // Calculate the footprint of the triangle on the grid's y-axis
-	    int y0 = (int)((tmin[2] - bmin[2])*ics);
-	    int y1 = (int)((tmax[2] - bmin[2])*ics);
-	    y0 = rcClamp(y0, 0, h-1);
-	    y1 = rcClamp(y1, 0, h-1);
-	
-	    // Clip the triangle into all grid cells it touches.
-	    //float[] buf = new float[7*3*4];
+        rcVmin(tmin, 0, v1, v1Start);
+        rcVmin(tmin, 0, v2, v2Start);
+        rcVmax(tmax, 0, v1, v1Start);
+        rcVmax(tmax, 0, v2, v2Start);
 
-	    float[] _in = new float[7*3];
-        float[] inrow = new float[7*3];
-        float[] p1 = new float[7*3];
-        float[] p2 = new float[7*3];
+        // If the triangle does not touch the bbox of the heightfield, skip the triagle.
+        if (!overlapBounds(bmin, bmax, tmin, tmax))
+            return;
 
-	    rcVcopy(_in,0  , v0, v0Start);
-	    rcVcopy(_in,1*3, v1, v1Start);
-	    rcVcopy(_in,2*3, v2, v2Start);
+        // Calculate the footprint of the triangle on the grid's y-axis
+        int y0 = (int)((tmin[2] - bmin[2]) * ics);
+        int y1 = (int)((tmax[2] - bmin[2]) * ics);
+        y0 = rcClamp(y0, 0, h - 1);
+        y1 = rcClamp(y1, 0, h - 1);
 
-	    int nvrow = 0;
+        // Clip the triangle into all grid cells it touches.
+        //float[] buf = new float[7*3*4];
+
+        float[] _in = new float[7 * 3];
+        float[] inrow = new float[7 * 3];
+        float[] p1 = new float[7 * 3];
+        float[] p2 = new float[7 * 3];
+
+        rcVcopy(_in, 0, v0, v0Start);
+        rcVcopy(_in, 1 * 3, v1, v1Start);
+        rcVcopy(_in, 2 * 3, v2, v2Start);
+
+        int nvrow = 0;
         int nvIn = 3;
-	
-	    for (int y = y0; y <= y1; ++y)
-	    {
-		    // Clip polygon to row. Store the remaining polygon as well
-		    float cz = bmin[2] + y*cs;
-		    dividePoly(_in, nvIn, inrow, ref nvrow, p1, ref nvIn, cz+cs, 2);
-		    //rcSwap(_in, p1);
+
+        for (int y = y0; y <= y1; ++y)
+        {
+            // Clip polygon to row. Store the remaining polygon as well
+            float cz = bmin[2] + y * cs;
+            dividePoly(_in, nvIn, inrow, ref nvrow, p1, ref nvIn, cz + cs, 2);
+            //rcSwap(_in, p1);
             float[] tmp = _in;
             _in = p1;
             p1 = tmp;
 
-		    if (nvrow < 3) 
+            if (nvrow < 3)
                 continue;
-		
-		    // find the horizontal bounds in the row
-		    float minX = inrow[0], maxX = inrow[0];
-		    for (int i=1; i<nvrow; ++i)
-		    {
-			    if (minX > inrow[i*3])	minX = inrow[i*3];
-			    if (maxX < inrow[i*3])	maxX = inrow[i*3];
-		    }
-		    int x0 = (int)((minX - bmin[0])*ics);
-		    int x1 = (int)((maxX - bmin[0])*ics);
-		    x0 = rcClamp(x0, 0, w-1);
-		    x1 = rcClamp(x1, 0, w-1);
 
-		    int nv = 0;
+            // find the horizontal bounds in the row
+            float minX = inrow[0], maxX = inrow[0];
+            for (int i = 1; i < nvrow; ++i)
+            {
+                if (minX > inrow[i * 3]) minX = inrow[i * 3];
+                if (maxX < inrow[i * 3]) maxX = inrow[i * 3];
+            }
+            int x0 = (int)((minX - bmin[0]) * ics);
+            int x1 = (int)((maxX - bmin[0]) * ics);
+            x0 = rcClamp(x0, 0, w - 1);
+            x1 = rcClamp(x1, 0, w - 1);
+
+            int nv = 0;
             int nv2 = nvrow;
 
-		    for (int x = x0; x <= x1; ++x)
-		    {
-			    // Clip polygon to column. store the remaining polygon as well
-			    float cx = bmin[0] + x*cs;
-			    dividePoly(inrow, nv2, p1, ref nv, p2, ref nv2, cx+cs, 0);
-			    //rcSwap(inrow, p2);
+            for (int x = x0; x <= x1; ++x)
+            {
+                // Clip polygon to column. store the remaining polygon as well
+                float cx = bmin[0] + x * cs;
+                dividePoly(inrow, nv2, p1, ref nv, p2, ref nv2, cx + cs, 0);
+                //rcSwap(inrow, p2);
                 tmp = inrow;
                 inrow = p2;
                 p2 = tmp;
-			    if (nv < 3) {
+                if (nv < 3)
+                {
                     continue;
                 }
-			
-			    // Calculate min and max of the span.
-			    float smin = p1[1], smax = p1[1];
-			    for (int i = 1; i < nv; ++i)
-			    {
-				    smin = Math.Min(smin, p1[i*3+1]);
-				    smax = Math.Max(smax, p1[i*3+1]);
-			    }
-			    smin -= bmin[1];
-			    smax -= bmin[1];
-			    // Skip the span if it is outside the heightfield bbox
-			    if (smax < 0.0f) continue;
-			    if (smin > by) continue;
-			    // Clamp the span to the heightfield bbox.
-			    if (smin < 0.0f) smin = 0;
-			    if (smax > by) smax = by;
-			
-			    // Snap the span to the heightfield height grid.
-			    ushort ismin = (ushort)rcClamp((int)Math.Floor(smin * ich), 0, RC_SPAN_MAX_HEIGHT);
-			    ushort ismax = (ushort)rcClamp((int)Math.Ceiling(smax * ich), (int)ismin+1, RC_SPAN_MAX_HEIGHT);
-			
-			    addSpan(hf, x, y, ismin, ismax, area, flagMergeThr);
-		    }
-	    }
+
+                // Calculate min and max of the span.
+                float smin = p1[1], smax = p1[1];
+                for (int i = 1; i < nv; ++i)
+                {
+                    smin = Math.Min(smin, p1[i * 3 + 1]);
+                    smax = Math.Max(smax, p1[i * 3 + 1]);
+                }
+                smin -= bmin[1];
+                smax -= bmin[1];
+                // Skip the span if it is outside the heightfield bbox
+                if (smax < 0.0f) continue;
+                if (smin > by) continue;
+                // Clamp the span to the heightfield bbox.
+                if (smin < 0.0f) smin = 0;
+                if (smax > by) smax = by;
+
+                // Snap the span to the heightfield height grid.
+                ushort ismin = (ushort)rcClamp((int)Math.Floor(smin * ich), 0, RC_SPAN_MAX_HEIGHT);
+                ushort ismax = (ushort)rcClamp((int)Math.Ceiling(smax * ich), (int)ismin + 1, RC_SPAN_MAX_HEIGHT);
+
+                addSpan(hf, x, y, ismin, ismax, area, flagMergeThr);
+            }
+        }
     }
 
     /// @par

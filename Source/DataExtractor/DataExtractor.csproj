@@ -1,13 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\..\default.props" />
+  <Import Project="../../default.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <Folder Include="Framework\Detour\" />
-    <Folder Include="Framework\Recast\" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.5.2" />
   </ItemGroup>
 
 </Project>

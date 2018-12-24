@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Constants;
-using Framework.GameMath;
+using DataExtractor.Framework.Constants;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -38,14 +38,14 @@ namespace DataExtractor.Vmap
             if (dirfileCache != null)
                 return initFromCache(map_num, originalMapId);
 
-            MemoryStream stream = Program.cascHandler.ReadFile(Adtfilename);
+            Stream stream = Program.CascHandler.OpenFile(Adtfilename);
             if (stream == null)
                 return false;
 
             if (cacheable)
                 dirfileCache = new List<ADTOutputCache>();
 
-            string dirname = Program.wmoDirectory + "dir_bin";
+            string dirname = Program.WmoDirectory + "dir_bin";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
             {
                 using (BinaryReader binaryReader = new BinaryReader(stream))
@@ -158,7 +158,7 @@ namespace DataExtractor.Vmap
             if (dirfileCache.Empty())
                 return true;
 
-            string dirname = Program.wmoDirectory + "dir_bin";
+            string dirname = Program.WmoDirectory + "dir_bin";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
             {
                 foreach (ADTOutputCache cached in dirfileCache)

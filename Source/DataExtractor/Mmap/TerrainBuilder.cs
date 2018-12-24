@@ -15,13 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using Framework.Collision;
-using Framework.Constants;
-using Framework.GameMath;
+using DataExtractor.Framework.ClientReader;
+using DataExtractor.Framework.Collision;
+using DataExtractor.Framework.Constants;
+using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace DataExtractor.Mmap
 {
@@ -30,6 +30,10 @@ namespace DataExtractor.Mmap
         public TerrainBuilder(VMapManager2 vm)
         {
             vmapManager = vm;
+
+            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>("DBFilesClient\\LiquidType.db2");
+            if (liquidTypeStorage == null)
+                Console.WriteLine("Fatal error: Invalid LiquidType.db2 file format!");
         }
 
         void getLoopVars(Spot portion, ref int loopStart, ref int loopEnd, ref int loopInc)
@@ -353,9 +357,11 @@ namespace DataExtractor.Mmap
 
                 float[] lverts = meshData.liquidVerts.ToArray();
                 int[] ltris = ltriangles.ToArray();
+                int currentLtrisIndex = 0;
 
                 float[] tverts = meshData.solidVerts.ToArray();
                 int[] ttris = ttriangles.ToArray();
+                int currentTtrisIndex = 0;
 
                 if ((ltriangles.Count + ttriangles.Count) == 0)
                     return false;
@@ -377,14 +383,14 @@ namespace DataExtractor.Mmap
                         // default is true, will change to false if needed
                         useTerrain = true;
                         useLiquid = true;
-                        NavTerrainFlag navTerrain = 0;
+                        byte liquidType = 0;
 
                         // if there is no liquid, don't use liquid
                         if (meshData.liquidVerts.Count == 0 || ltriangles.Count == 0)
                             useLiquid = false;
                         else
                         {
-                            byte liquidType = getLiquidType(i, liquid_flags);
+                            liquidType = getLiquidType(i, liquid_flags);
                             if (Convert.ToBoolean(liquidType & (byte)LiquidTypeMask.DarkWater))
                             {
                                 // players should not be here, so logically neither should creatures
@@ -411,7 +417,7 @@ namespace DataExtractor.Mmap
                             uint validCount = 0;
                             for (uint idx = 0; idx < 3; idx++)
                             {
-                                float h = lverts_copy[ltris[idx] * 3 + 1];
+                                float h = lverts_copy[ltris[currentLtrisIndex + idx] * 3 + 1];
                                 if (h != SharedConst.INVALID_MAP_LIQ_HEIGHT && h < SharedConst.INVALID_MAP_LIQ_HEIGHT_MAX)
                                 {
                                     quadHeight += h;
@@ -425,9 +431,9 @@ namespace DataExtractor.Mmap
                                 quadHeight /= validCount;
                                 for (uint idx = 0; idx < 3; idx++)
                                 {
-                                    float h = lverts[ltris[idx] * 3 + 1];
+                                    float h = lverts[ltris[currentLtrisIndex + idx] * 3 + 1];
                                     if (h == SharedConst.INVALID_MAP_LIQ_HEIGHT || h > SharedConst.INVALID_MAP_LIQ_HEIGHT_MAX)
-                                        lverts[ltris[idx] * 3 + 1] = quadHeight;
+                                        lverts[ltris[currentLtrisIndex + idx] * 3 + 1] = quadHeight;
                                 }
                             }
 
@@ -447,7 +453,7 @@ namespace DataExtractor.Mmap
                             float maxLLevel = SharedConst.INVALID_MAP_LIQ_HEIGHT;
                             for (uint x = 0; x < 3; x++)
                             {
-                                float h = lverts[ltris[x] * 3 + 1];
+                                float h = lverts[ltris[currentLtrisIndex + x] * 3 + 1];
                                 if (minLLevel > h)
                                     minLLevel = h;
 
@@ -459,7 +465,7 @@ namespace DataExtractor.Mmap
                             float minTLevel = SharedConst.INVALID_MAP_LIQ_HEIGHT_MAX;
                             for (uint x = 0; x < 6; x++)
                             {
-                                float h = tverts[ttris[x] * 3 + 1];
+                                float h = tverts[ttris[currentTtrisIndex + x] * 3 + 1];
                                 if (maxTLevel < h)
                                     maxTLevel = h;
 
@@ -479,17 +485,19 @@ namespace DataExtractor.Mmap
                         // store the result
                         if (useLiquid)
                         {
-                            meshData.liquidType.Add((byte)navTerrain);
+                            meshData.liquidType.Add((byte)liquidType);
                             for (int k = 0; k < 3; ++k)
-                                meshData.liquidTris.Add(ltris[k]);
+                                meshData.liquidTris.Add(ltris[currentLtrisIndex + k]);
                         }
 
                         if (useTerrain)
                             for (int k = 0; k < 3 * tTriCount / 2; ++k)
-                                meshData.solidTris.Add(ttris[k]);
+                                meshData.solidTris.Add(ttris[currentTtrisIndex + k]);
 
-                        ltris = ltris.Skip(3).ToArray();
-                        ttris = ttris.Skip(3 * tTriCount / 2).ToArray();
+                        currentLtrisIndex += 3;
+                        //ltris = ltris.Skip(3).ToArray();
+                        currentTtrisIndex += 3 * tTriCount / 2;
+                        //ttris = ttris.Skip(3 * tTriCount / 2).ToArray();
                     }
                 }
             }
@@ -680,8 +688,8 @@ namespace DataExtractor.Mmap
                             NavArea type = NavArea.Empty;
 
                             // convert liquid type to NavTerrain
-                            var liquidTypeRecord = CliDB.LiquidTypes.LookupByKey(liquid.GetLiquidType());
-                            uint liquidFlags = (uint)(liquidTypeRecord != null ? liquidTypeRecord.SoundBank : 0);
+                            var liquidTypeRecord = liquidTypeStorage.LookupByKey(liquid.GetLiquidType());
+                            uint liquidFlags = (uint)(liquidTypeRecord != null ? (1 << liquidTypeRecord.SoundBank) : 0);
                             if ((liquidFlags & (uint)(LiquidTypeMask.Water | LiquidTypeMask.Ocean)) != 0)
                                 type = NavArea.Water;
                             else if ((liquidFlags & (uint)(LiquidTypeMask.Magma | LiquidTypeMask.Slime)) != 0)
@@ -805,6 +813,20 @@ namespace DataExtractor.Mmap
             }
         }
 
+        public static void copyIndices(List<int> source, List<int> dest, int offset)
+        {
+            int[] src = source.ToArray();
+
+            for (int i = 0; i < source.Count; ++i)
+            {
+                var g = src[i] + offset;
+                dest.Add(src[i] + offset);
+
+            }
+
+
+        }
+
         /**************************************************************************/
         void copyIndices(int[] source, List<int> dest, int offset)
         {
@@ -906,6 +928,7 @@ namespace DataExtractor.Mmap
         public bool usesLiquids() { return true; }// !m_skipLiquid; }
 
         VMapManager2 vmapManager;
+        Dictionary<uint, LiquidTypeRecord> liquidTypeStorage;
     }
 
     public struct map_fileheader
