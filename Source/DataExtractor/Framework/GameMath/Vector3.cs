@@ -103,6 +103,8 @@ namespace DataExtractor.Framework.GameMath
         /// 4-Dimentional single-precision floating point Y-Axis vector.
         /// </summary>
         public static readonly Vector3 ZAxis = new Vector3(0.0f, 0.0f, 1.0f);
+
+        public static readonly Vector3 NaN = new Vector3(float.NaN, float.NaN, float.NaN);
         #endregion
 
         #region Public properties

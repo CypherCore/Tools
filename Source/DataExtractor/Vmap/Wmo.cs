@@ -180,7 +180,7 @@ namespace DataExtractor.Vmap
                 writer.Write(scale);
                 writer.WriteVector3(bounds.Lo);
                 writer.WriteVector3(bounds.Hi);
-                writer.Write(WmoInstName.Length);
+                writer.Write(WmoInstName.GetByteCount());
                 writer.WriteString(WmoInstName);
 
                 if (dirfileCache != null)
@@ -197,7 +197,7 @@ namespace DataExtractor.Vmap
                     cacheData.Write(scale);
                     cacheData.WriteVector3(bounds.Lo);
                     cacheData.WriteVector3(bounds.Hi);
-                    cacheData.Write(WmoInstName.Length);
+                    cacheData.Write(WmoInstName.GetByteCount());
                     cacheData.WriteString(WmoInstName);
 
                     cacheModelData.Data = stream.ToArray();

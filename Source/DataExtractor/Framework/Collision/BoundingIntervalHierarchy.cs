@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * Copyright (C) 2012-2019 CypherCore <http://github.com/CypherCore>
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,10 +95,11 @@ namespace DataExtractor.Framework.Collision
                 float nodeR = float.NegativeInfinity;
                 for (int i = left; i <= right; )
                 {
-                    int obj = (int)dat.indices[i];
+                    uint obj = dat.indices[i];
                     float minb = dat.primBound[obj].Lo[axis];
                     float maxb = dat.primBound[obj].Hi[axis];
                     float center = (minb + maxb) * 0.5f;
+
                     if (center <= split)
                     {
                         // stay left
@@ -109,9 +110,9 @@ namespace DataExtractor.Framework.Collision
                     else
                     {
                         // move to the right most
-                        int t = (int)dat.indices[i];
+                        uint t = dat.indices[i];
                         dat.indices[i] = dat.indices[right];
-                        dat.indices[right] = (uint)t;
+                        dat.indices[right] = t;
                         right--;
                         if (clipR > minb)
                             clipR = minb;
@@ -316,7 +317,7 @@ namespace DataExtractor.Framework.Collision
                 return;
             }
 
-            buildData dat = new buildData();
+            buildData dat;
             dat.maxPrims = (int)leafSize;
             dat.numPrims = (uint)primitives.Count;
             dat.indices = new uint[dat.numPrims];
@@ -324,6 +325,7 @@ namespace DataExtractor.Framework.Collision
             getBounds(primitives[0], out bounds);
             for (int i = 0; i < dat.numPrims; ++i)
             {
+                dat.primBound[i] = AxisAlignedBox.NaN;
                 dat.indices[i] = (uint)i;
                 getBounds(primitives[i], out dat.primBound[i]);
                 bounds.merge(dat.primBound[i]);
@@ -346,13 +348,14 @@ namespace DataExtractor.Framework.Collision
             tempTree[nodeIndex + 1] = (uint)(right - left + 1);
         }
 
-        class buildData
+        struct buildData
         {
             public uint[] indices;
             public AxisAlignedBox[] primBound;
             public uint numPrims;
             public int maxPrims;
         }
+
         public class BuildStats
         {
             public int numNodes;
@@ -398,7 +401,7 @@ namespace DataExtractor.Framework.Collision
             }
         }
 
-        AxisAlignedBox bounds;
+        AxisAlignedBox bounds = AxisAlignedBox.NaN;
         List<uint> tree = new List<uint>();
         List<uint> objects = new List<uint>();
 
@@ -421,6 +424,7 @@ namespace DataExtractor.Framework.Collision
     }
     public struct AABound
     {
-        public Vector3 lo, hi;
+        public Vector3 lo;
+        public Vector3 hi;
     }
 }

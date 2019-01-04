@@ -71,7 +71,7 @@ namespace DataExtractor.Vmap
                     {
                         binaryWriter.Write(record.Id);
                         binaryWriter.Write(isWmo);
-                        binaryWriter.Write(fileName.Length);
+                        binaryWriter.Write(fileName.GetByteCount());
                         binaryWriter.WriteString(fileName);
                     }
                 }

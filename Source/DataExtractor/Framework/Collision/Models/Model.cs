@@ -76,7 +76,7 @@ namespace DataExtractor.Framework.Collision
                 writer.WriteVector3(spawn.iBound.Hi);
             }
 
-            writer.Write(spawn.name.Length);
+            writer.Write(spawn.name.GetByteCount());
             writer.WriteString(spawn.name);
         }
 
@@ -87,7 +87,7 @@ namespace DataExtractor.Framework.Collision
         public Vector3 iPos;
         public Vector3 iRot;
         public float iScale;
-        public AxisAlignedBox iBound;
+        public AxisAlignedBox iBound = AxisAlignedBox.NaN;
         public string name;
     }
 

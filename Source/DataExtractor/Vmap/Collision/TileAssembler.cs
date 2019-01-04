@@ -194,7 +194,7 @@ namespace DataExtractor.Vmap.Collision
             if (groups != 1)
                 Console.WriteLine($"Warning: '{modelFilename}' does not seem to be a M2 model!");
 
-            AxisAlignedBox modelBound = AxisAlignedBox.Zero();
+            AxisAlignedBox modelBound = AxisAlignedBox.NaN;
             modelBound.merge(modelPosition.transform(raw_model.groupsArray[0].bounds.Lo));
             modelBound.merge(modelPosition.transform(raw_model.groupsArray[0].bounds.Hi));
 
@@ -231,7 +231,10 @@ namespace DataExtractor.Vmap.Collision
                 model.setGroupModels(groupsArray);
             }
 
-            model.writeFile(iDestDir + "/" + pModelFilename + ".vmo");
+            if (!pModelFilename.Contains('\0'))
+                pModelFilename = pModelFilename + ".vmo";
+
+            model.writeFile(iDestDir + "/" + pModelFilename);
         }
 
         void exportGameobjectModels()
@@ -262,7 +265,7 @@ namespace DataExtractor.Vmap.Collision
                             continue;
 
                         spawnedModelFiles.Add(model_name);
-                        AxisAlignedBox bounds = AxisAlignedBox.Zero();
+                        AxisAlignedBox bounds = AxisAlignedBox.NaN;
                         bool boundEmpty = true;
                         for (uint g = 0; g < raw_model.groupsArray.Length; ++g)
                         {
@@ -341,8 +344,6 @@ namespace DataExtractor.Vmap.Collision
             return (outVec);
         }
 
-        void moveToBasePos(Vector3 pBasePos) { iPos -= pBasePos; }
-
         public Matrix3 iRotation;
         public Vector3 iPos;
         public Vector3 iDir;
@@ -353,6 +354,7 @@ namespace DataExtractor.Vmap.Collision
     {
         public bool Read(string path)
         {
+            path = path.TrimEnd('\0');
             if (!File.Exists(path))
             {
                 Console.WriteLine($"ERROR: Can't open raw model file: {path}");

@@ -258,10 +258,9 @@ namespace DataExtractor.Framework.GameMath
             }
         }
 
-        public static AxisAlignedBox Zero()
-        {
-            return new AxisAlignedBox(Vector3.Zero, Vector3.Zero);
-        }
+        public static readonly AxisAlignedBox Zero = new AxisAlignedBox(Vector3.Zero, Vector3.Zero);
+
+        public static readonly AxisAlignedBox NaN = new AxisAlignedBox(Vector3.NaN, Vector3.NaN);
 
         public Vector3 corner(int index)
         {

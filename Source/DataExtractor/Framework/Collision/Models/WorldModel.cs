@@ -296,7 +296,7 @@ namespace DataExtractor.Framework.Collision
 
         public AxisAlignedBox GetBound() { return iBound; }
 
-        AxisAlignedBox iBound;
+        AxisAlignedBox iBound = AxisAlignedBox.NaN;
         uint iMogpFlags;
         uint iGroupWMOID;
         List<Vector3> vertices = new List<Vector3>();
@@ -326,7 +326,7 @@ namespace DataExtractor.Framework.Collision
 
         public void writeFile(string filename)
         {
-            using (BinaryWriter writer = new BinaryWriter(File.Open(filename, FileMode.Create)))
+            using (BinaryWriter writer = new BinaryWriter(File.Open(filename.TrimEnd('\0'), FileMode.Create)))
             {
                 writer.WriteString(SharedConst.VMAP_MAGIC);
                 writer.WriteString("WMOD");

@@ -195,7 +195,7 @@ namespace DataExtractor.Vmap
             writer.WriteVector3(position);
             writer.WriteVector3(doodadDef.Rotation);
             writer.Write(sc);
-            writer.Write(ModelInstName.Length);
+            writer.Write(ModelInstName.GetByteCount());
             writer.WriteString(ModelInstName);
 
             if (dirfileCache != null)
@@ -210,7 +210,7 @@ namespace DataExtractor.Vmap
                 cacheData.WriteVector3(position);
                 cacheData.WriteVector3(doodadDef.Rotation);
                 cacheData.Write(sc);
-                cacheData.Write(ModelInstName.Length);
+                cacheData.Write(ModelInstName.GetByteCount());
                 cacheData.WriteString(ModelInstName);
 
                 cacheModelData.Data = stream.ToArray();
@@ -289,7 +289,7 @@ namespace DataExtractor.Vmap
                     writer.WriteVector3(position);
                     writer.WriteVector3(rotation);
                     writer.Write(doodad.Scale);
-                    writer.Write(ModelInstName.Length);
+                    writer.Write(ModelInstName.GetByteCount());
                     writer.WriteString(ModelInstName);
 
                     if (dirfileCache != null)
@@ -304,7 +304,7 @@ namespace DataExtractor.Vmap
                         cacheData.WriteVector3(position);
                         cacheData.WriteVector3(rotation);
                         cacheData.Write(doodad.Scale);
-                        cacheData.Write(ModelInstName.Length);
+                        cacheData.Write(ModelInstName.GetByteCount());
                         cacheData.WriteString(ModelInstName);
 
                         cacheModelData.Data = stream.ToArray();

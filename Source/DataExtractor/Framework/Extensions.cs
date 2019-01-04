@@ -151,6 +151,11 @@ namespace System
         }
         #endregion
 
+        #region Strings
+        public static bool IsEmpty(this string str)
+        {
+            return string.IsNullOrEmpty(str);
+        }
         public static string GetPlainName(this string fileName, int index = -1)
         {
             if (index == -1)
@@ -191,5 +196,13 @@ namespace System
 
             return true;
         }
+        public static int GetByteCount(this string str)
+        {
+            if (str.IsEmpty())
+                return 0;
+
+            return Encoding.UTF8.GetByteCount(str);
+        }
+        #endregion
     }
 }
