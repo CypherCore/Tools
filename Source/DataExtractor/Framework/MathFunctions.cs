@@ -77,13 +77,13 @@ public static class MathFunctions
     }
     #endregion
 
-    static double eps(double a, double b)
+    static double eps(float a, float b)
     {
-        double aa = Math.Abs(a) + 1.0;
-        if (aa == double.PositiveInfinity)
-            return double.Epsilon;
+        float aa = Math.Abs(a) + 1.0f;
+        if (aa == float.PositiveInfinity)
+            return 0.00001f;
         else
-            return double.Epsilon * aa;
+            return 0.00001f * aa;
     }
 
     public static float lerp(float a, float b, float f)
@@ -107,27 +107,27 @@ public static class MathFunctions
     }
 
     #region Fuzzy
-    public static bool fuzzyEq(double a, double b)
+    public static bool fuzzyEq(float a, float b)
     {
         return (a == b) || (Math.Abs(a - b) <= eps(a, b));
     }
-    public static bool fuzzyGt(double a, double b)
+    public static bool fuzzyGt(float a, float b)
     {
         return a > b + eps(a, b);
     }
-    public static bool fuzzyLt(double a, double b)
+    public static bool fuzzyLt(float a, float b)
     {
         return a < b - eps(a, b);
     }
-    public static bool fuzzyNe(double a, double b)
+    public static bool fuzzyNe(float a, float b)
     {
         return !fuzzyEq(a, b);
     }
-    public static bool fuzzyLe(double a, double b)
+    public static bool fuzzyLe(float a, float b)
     {
         return a < b + eps(a, b);
     }
-    public static bool fuzzyGe(double a, double b)
+    public static bool fuzzyGe(float a, float b)
     {
         return a > b - eps(a, b);
     }
