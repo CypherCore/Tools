@@ -65,17 +65,6 @@ public static partial class Recast
             }
         }
 
-        string tempName = $"mmaps_new/Test.txt";
-        using (TextWriter writer = File.CreateText(tempName))
-        {
-            for (int i = 0; i < nverts + maxEdgeCount; ++i)
-            {
-                writer.Write("FirstEdgeIndex: {0}\n", i);
-                writer.Write("Id: {0}\n", firstEdge[i]);
-                writer.Write("\n");
-            }
-        }
-
         for (int i = 0; i < npolys; ++i)
         {
             //ushort* t = &polys[i*vertsPerPoly*2];

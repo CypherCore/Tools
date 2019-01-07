@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2012-2017 CypherCore <http://github.com/CypherCore>
+ * Copyright (C) 2012-2019 CypherCore <http://github.com/CypherCore>
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -126,7 +126,7 @@ namespace DataExtractor
             Console.WriteLine("Select your task.");
             Console.WriteLine("maps                         Extract DB2 and maps");
             Console.WriteLine("vmaps                        Extract vmaps(requires maps)");
-            Console.WriteLine("mmaps [-mapid #][-debug]     Extract mmaps(requires maps, vmaps. may take hours)");
+            Console.WriteLine("mmaps [-id #][-debug]        Extract mmaps(requires maps, vmaps. may take hours)");
             Console.WriteLine("all                          Extract all(may take hours)");
             Console.WriteLine("exit                         EXIT");
             //Add args to the new of the command   so like Pick a task  ->  mmaps -debug  and many more if we need them
@@ -319,7 +319,7 @@ namespace DataExtractor
                 return;
             }
 
-            CreateDirectory("mmaps_new");
+            CreateDirectory("mmaps");
 
             //handle args
             bool debugMaps = false;
@@ -367,11 +367,6 @@ namespace DataExtractor
                 builder.buildAllMaps();
 
             Console.WriteLine($"Finished. MMAPS were built in {watch.ElapsedMilliseconds} ms!");
-        }
-
-        static void ParseTaskAndOptions(string line)
-        {
-
         }
 
         public static void CreateDirectory(string path)

@@ -403,7 +403,7 @@ namespace DataExtractor.Mmap
                 return;
             }
 
-            string fileName = $"mmaps_new/{mapID:D4}.mmap";
+            string fileName = $"mmaps/{mapID:D4}.mmap";
             using (BinaryWriter writer = new BinaryWriter(File.Open(fileName, FileMode.Create, FileAccess.Write)))
             {
                 // now that we know navMesh params are valid, we can write them to file
@@ -564,12 +564,6 @@ namespace DataExtractor.Mmap
                         continue;
                     }
 
-                    string tempName = $"mmaps_new/{mapID:D4}{tileY:D2}{tileX:D2}_{x:D2}{y:D2}.txt";
-                    using (TextWriter writer = File.CreateText(tempName))
-                    {
-                       writer.Write(tile.pmesh.ToString());
-                    }
-
                     tile.dmesh = new rcPolyMeshDetail();
                     if (!rcBuildPolyMeshDetail(m_rcContext, tile.pmesh, tile.chf, tileCfg.detailSampleDist, tileCfg.detailSampleMaxError, tile.dmesh))
                     {
@@ -700,7 +694,7 @@ namespace DataExtractor.Mmap
                 }
 
                 // file output
-                string fileName = $"mmaps_new/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
+                string fileName = $"mmaps/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
                 using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(fileName, FileMode.Create, FileAccess.Write)))
                 {
                     var navData = dtRawTile.ToBytes();
@@ -889,7 +883,7 @@ namespace DataExtractor.Mmap
 
         bool shouldSkipTile(uint mapID, uint tileX, uint tileY)
         {
-            string fileName = $"mmaps_new/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
+            string fileName = $"mmaps/{mapID:D4}{tileY:D2}{tileX:D2}.mmtile";
             if (!File.Exists(fileName))
                 return false;
 
@@ -907,7 +901,7 @@ namespace DataExtractor.Mmap
 
         void generateObjFile(uint mapID, uint tileX, uint tileY, MeshData meshData)
         {
-            string fileName = $"mmaps_new/meshes/{mapID:D4}{tileY:D2}{tileX:D2}.obj";
+            string fileName = $"mmaps/meshes/{mapID:D4}{tileY:D2}{tileX:D2}.obj";
             using (TextWriter writer = File.CreateText(fileName))
             {
                 List<float> allVerts = meshData.liquidVerts;
