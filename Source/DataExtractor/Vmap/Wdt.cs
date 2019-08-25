@@ -23,9 +23,11 @@ namespace DataExtractor.Vmap
 {
     class WDTFile
     {
-        public WDTFile(string mapName, bool cache)
+        public WDTFile(uint fileDataId, string mapName, bool cache)
         {
+            _fileStream = Program.CascHandler.OpenFile((int)fileDataId);
             _mapName = mapName;
+
             if (cache)
             {
                 _adtCache = new ADTFile[64][];
@@ -36,14 +38,13 @@ namespace DataExtractor.Vmap
 
         public bool init(uint mapId)
         {
-            Stream stream = Program.CascHandler.OpenFile(_mapName + ".wdt");
-            if (stream == null)
+            if (_fileStream == null)
                 return false;
 
             string dirname = Program.WmoDirectory + "dir_bin";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
             {
-                using (BinaryReader binaryReader = new BinaryReader(stream))
+                using (BinaryReader binaryReader = new BinaryReader(_fileStream))
                 {
                     long fileLength = binaryReader.BaseStream.Length;
                     while (binaryReader.BaseStream.Position < fileLength)
@@ -53,10 +54,21 @@ namespace DataExtractor.Vmap
 
                         long nextpos = binaryReader.BaseStream.Position + size;
 
-                        if (fourcc == "MAIN")
+                        if (fourcc == "MPHD")
                         {
+                            _header = binaryReader.Read<MPHD>();
                         }
-                        if (fourcc == "MWMO")
+                        else if (fourcc == "MAIN")
+                        {
+                            _adtInfo = new MAIN();
+                            _adtInfo.Read(binaryReader);
+                        }
+                        else if (fourcc == "MAID")
+                        {
+                            _adtFileDataIds = new MAID();
+                            _adtFileDataIds.Read(binaryReader);
+                        }
+                        else if (fourcc == "MWMO")
                         {
                             // global map objects
                             if (size != 0)
@@ -113,15 +125,90 @@ namespace DataExtractor.Vmap
             if (_adtCache != null && _adtCache[x][y] != null)
                 return _adtCache[x][y];
 
-            string name = $"{_mapName}_{x}_{y}_obj0.adt";
-            ADTFile adt = new ADTFile(name, _adtCache != null);
+            if (!Convert.ToBoolean(_adtInfo.Data[x][y].Flag & 1))
+                return null;
+
+            ADTFile adt;
+            string name = $"World\\Maps\\{_mapName}\\{_mapName}_{x}_{y}_obj0.adt";
+            if ((_header.Flags & 0x200) != 0)
+                adt = new ADTFile(_adtFileDataIds.Data[x][y].Obj0ADT, _adtCache != null);
+            else
+                adt = new ADTFile(name, _adtCache != null);
+
             if (_adtCache != null)
                 _adtCache[x][y] = adt;
+
             return adt;
         }
 
+        Stream _fileStream;
+        MPHD _header;
+        MAIN _adtInfo;
+        MAID _adtFileDataIds;
         string _mapName;
         List<string> _wmoNames = new List<string>();
         ADTFile[][] _adtCache;
+    }
+
+    struct MPHD
+    {
+        public uint Flags;
+        public uint LgtFileDataID;
+        public uint OccFileDataID;
+        public uint FogsFileDataID;
+        public uint MpvFileDataID;
+        public uint TexFileDataID;
+        public uint WdlFileDataID;
+        public uint Pd4FileDataID;
+    }
+
+    class MAIN
+    {
+        public SMAreaInfo[][] Data = new SMAreaInfo[64][];
+
+        public void Read(BinaryReader reader)
+        {
+            for (var x = 0; x < 64; ++x)
+            {
+                Data[x] = new SMAreaInfo[64];
+
+                for (var y = 0; y < 64; ++y)
+                    Data[x][y] = reader.Read<SMAreaInfo>();
+            }
+        }
+
+        public struct SMAreaInfo
+        {
+            public uint Flag;
+            public uint AsyncId;
+        }
+    }
+
+    class MAID
+    {
+        public SMAreaFileIDs[][] Data = new SMAreaFileIDs[64][];
+
+        public void Read(BinaryReader reader)
+        {
+            for (var x = 0; x < 64; ++x)
+            {
+                Data[x] = new SMAreaFileIDs[64];
+
+                for (var y = 0; y < 64; ++y)
+                    Data[x][y] = reader.Read<SMAreaFileIDs>();
+            }
+        }
+
+        public struct SMAreaFileIDs
+        {
+            public uint RootADT;         // FileDataID of mapname_xx_yy.adt
+            public uint Obj0ADT;         // FileDataID of mapname_xx_yy_obj0.adt
+            public uint Obj1ADT;         // FileDataID of mapname_xx_yy_obj1.adt
+            public uint Tex0ADT;         // FileDataID of mapname_xx_yy_tex0.adt
+            public uint LodADT;          // FileDataID of mapname_xx_yy_lod.adt
+            public uint MapTexture;      // FileDataID of mapname_xx_yy.blp
+            public uint MapTextureN;     // FileDataID of mapname_xx_yy_n.blp
+            public uint MinimapTexture;  // FileDataID of mapxx_yy.blp
+        }
     }
 }

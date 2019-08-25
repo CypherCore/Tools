@@ -97,6 +97,22 @@ namespace DataExtractor.Vmap
                             }
                         }
                     }
+                    else if (fourcc == "MODI")
+                    {
+                        uint fileDataIdCount = size / 4;
+                        DoodadData.FileDataIds = new uint[size / 4];
+
+                        Buffer.BlockCopy(reader.ReadBytes((int)size), 0, DoodadData.FileDataIds, 0, DoodadData.FileDataIds.Length);
+                        for (uint i = 0; i < fileDataIdCount; ++i)
+                        {
+                            if (DoodadData.FileDataIds[i] == 0)
+                                continue;
+
+                            string path = $"File{DoodadData.FileDataIds[i]:X8}.xxx";
+                            if (VmapFile.ExtractSingleModel(path))
+                                ValidDoodadNames.Add(i);
+                        }
+                    }
                     else if (fourcc == "MODD")
                     {
                         for (var i = 0; i< size / 40; ++i)
@@ -601,6 +617,7 @@ namespace DataExtractor.Vmap
     {
         public List<MODS> Sets = new List<MODS>();
         public byte[] Paths;
+        public uint[] FileDataIds;
         public List<MODD> Spawns = new List<MODD>();
         public List<ushort> References = new List<ushort>();
     }

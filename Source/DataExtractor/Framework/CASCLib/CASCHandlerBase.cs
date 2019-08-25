@@ -60,16 +60,26 @@ namespace DataExtractor.CASCLib
 
         protected Stream OpenFileOnlineInternal(IndexEntry idxInfo, MD5Hash key)
         {
+            Stream s;
+
             if (idxInfo != null)
-            {
-                Stream s = CDNIndex.OpenDataFile(idxInfo);
-                return new BLTEStream(s, key);
-            }
+                s = CDNIndex.OpenDataFile(idxInfo);
             else
+                s = CDNIndex.OpenDataFileDirect(key);
+
+            BLTEStream blte;
+
+            try
             {
-                Stream s = CDNIndex.OpenDataFileDirect(key);
-                return new BLTEStream(s, key);
+                blte = new BLTEStream(s, key);
             }
+            catch (BLTEDecoderException exc) when (exc.ErrorCode == 0)
+            {
+                CDNCache.Instance.InvalidateFile(idxInfo != null ? Config.Archives[idxInfo.Index] : key.ToHexString());
+                return OpenFileOnlineInternal(idxInfo, key);
+            }
+
+            return blte;
         }
 
         private Stream OpenFileLocal(MD5Hash key)

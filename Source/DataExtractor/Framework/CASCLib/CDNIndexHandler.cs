@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-//using System.Net.Http;
-//using System.Net.Http.Headers;
 
 namespace DataExtractor.CASCLib
 {
@@ -20,15 +18,12 @@ namespace DataExtractor.CASCLib
         private Dictionary<MD5Hash, IndexEntry> CDNIndexData = new Dictionary<MD5Hash, IndexEntry>(comparer);
 
         private CASCConfig config;
-        private SyncDownloader downloader;
-        public static readonly CDNCache Cache = new CDNCache("cache");
 
         public int Count => CDNIndexData.Count;
 
         private CDNIndexHandler(CASCConfig cascConfig)
         {
             config = cascConfig;
-            downloader = new SyncDownloader();
         }
 
         public static CDNIndexHandler Initialize(CASCConfig config)
@@ -85,9 +80,8 @@ namespace DataExtractor.CASCLib
             try
             {
                 string file = config.CDNPath + "/data/" + archive.Substring(0, 2) + "/" + archive.Substring(2, 2) + "/" + archive + ".index";
-                string url = "http://" + config.CDNHost + "/" + file;
 
-                Stream stream = Cache.OpenFile(file, url, false);
+                Stream stream = CDNCache.Instance.OpenFile(file, false);
 
                 if (stream != null)
                 {
@@ -95,7 +89,9 @@ namespace DataExtractor.CASCLib
                 }
                 else
                 {
-                    using (var fs = downloader.OpenFile(url))
+                    string url = "http://" + config.CDNHost + "/" + file;
+
+                    using (var fs = OpenFile(url))
                         ParseIndex(fs, i);
                 }
             }
@@ -134,9 +130,8 @@ namespace DataExtractor.CASCLib
             var archive = config.Archives[entry.Index];
 
             string file = config.CDNPath + "/data/" + archive.Substring(0, 2) + "/" + archive.Substring(2, 2) + "/" + archive;
-            string url = "http://" + config.CDNHost + "/" + file;
 
-            Stream stream = Cache.OpenFile(file, url, true);
+            Stream stream = CDNCache.Instance.OpenFile(file, true);
 
             if (stream != null)
             {
@@ -159,42 +154,53 @@ namespace DataExtractor.CASCLib
             //    return ms;
             //}
 
+            string url = "http://" + config.CDNHost + "/" + file;
+
             HttpWebRequest req = WebRequest.CreateHttp(url);
             //req.Headers[HttpRequestHeader.Range] = string.Format("bytes={0}-{1}", entry.Offset, entry.Offset + entry.Size - 1);
             req.AddRange(entry.Offset, entry.Offset + entry.Size - 1);
-            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponseAsync().Result)
+            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+            using (Stream respStream = resp.GetResponseStream())
             {
                 MemoryStream ms = new MemoryStream(entry.Size);
-                resp.GetResponseStream().CopyBytes(ms, entry.Size);
+                respStream.CopyBytes(ms, entry.Size);
                 ms.Position = 0;
                 return ms;
             }
         }
 
-        public MemoryStream OpenDataFileDirect(MD5Hash key)
+        public Stream OpenDataFileDirect(MD5Hash key)
         {
             var keyStr = key.ToHexString().ToLower();
 
             string file = config.CDNPath + "/data/" + keyStr.Substring(0, 2) + "/" + keyStr.Substring(2, 2) + "/" + keyStr;
-            string url = "http://" + config.CDNHost + "/" + file;
 
-            MemoryStream stream = Cache.OpenFile(file, url, false);
+            Stream stream = CDNCache.Instance.OpenFile(file, false);
 
             if (stream != null)
-                return stream;
+            {
+                stream.Position = 0;
+                MemoryStream ms = new MemoryStream();
+                stream.CopyTo(ms);
+                ms.Position = 0;
+                return ms;
+            }
 
-            return downloader.OpenFile(url);
+            string url = "http://" + config.CDNHost + "/" + file;
+
+            return OpenFile(url);
         }
 
         public static Stream OpenConfigFileDirect(CASCConfig cfg, string key)
         {
             string file = cfg.CDNPath + "/config/" + key.Substring(0, 2) + "/" + key.Substring(2, 2) + "/" + key;
-            string url = "http://" + cfg.CDNHost + "/" + file;
 
-            Stream stream = Cache.OpenFile(file, url, false);
+            Stream stream = CDNCache.Instance.OpenFile(file, false);
 
             if (stream != null)
                 return stream;
+
+            string url = "http://" + cfg.CDNHost + "/" + file;
 
             return OpenFileDirect(url);
         }
@@ -212,18 +218,48 @@ namespace DataExtractor.CASCLib
             //}
 
             HttpWebRequest req = WebRequest.CreateHttp(url);
-            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponseAsync().Result)
+            long fileSize = GetFileSize(url);
+            req.AddRange(0, fileSize - 1);
+            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+            using (Stream respStream = resp.GetResponseStream())
             {
                 MemoryStream ms = new MemoryStream();
-                resp.GetResponseStream().CopyTo(ms);
+                respStream.CopyTo(ms);
                 ms.Position = 0;
                 return ms;
+            }
+        }
+
+        private Stream OpenFile(string url)
+        {
+            HttpWebRequest req = WebRequest.CreateHttp(url);
+            long fileSize = GetFileSize(url);
+            req.AddRange(0, fileSize - 1);
+            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+            using (Stream stream = resp.GetResponseStream())
+            {
+                MemoryStream ms = new MemoryStream();
+                stream.CopyToStream(ms, resp.ContentLength);
+                ms.Position = 0;
+                return ms;
+            }
+        }
+
+        private static long GetFileSize(string url)
+        {
+            HttpWebRequest request = WebRequest.CreateHttp(url);
+            request.Method = "HEAD";
+
+            using (HttpWebResponse resp = (HttpWebResponse)request.GetResponse())
+            {
+                return resp.ContentLength;
             }
         }
 
         public IndexEntry GetIndexInfo(MD5Hash key)
         {
             CDNIndexData.TryGetValue(key, out IndexEntry result);
+
             return result;
         }
 
@@ -233,7 +269,6 @@ namespace DataExtractor.CASCLib
             CDNIndexData = null;
 
             config = null;
-            downloader = null;
         }
     }
 }

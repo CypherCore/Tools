@@ -23,7 +23,7 @@ namespace DataExtractor.Framework.ClientReader
         public float[] Origin = new float[3];
         public uint SoundID;
         public float OriginFacing;
-        public uint ModelFileDataID;
+        public uint FileDataID;
     }
 
     public sealed class GameObjectDisplayInfoRecord
@@ -102,7 +102,8 @@ namespace DataExtractor.Framework.ClientReader
         public short CorpseMapID;                                              // map_id of entrance map in ghost mode (continent always and in most cases = normal entrance)
         public byte MaxPlayers;
         public short WindSettingsID;
-        public int ZmpFileDataID;
+        public uint ZmpFileDataID;
+        public uint WdtFileDataID;
         public uint[] Flags = new uint[2];
     }
 }

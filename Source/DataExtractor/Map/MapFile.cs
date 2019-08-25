@@ -81,14 +81,14 @@ namespace DataExtractor
 
         static bool LoadRequiredDb2Files()
         {
-            liquidMaterialStorage = DBReader.Read<LiquidMaterialRecord>("DBFilesClient\\LiquidMaterial.db2");
+            liquidMaterialStorage = DBReader.Read<LiquidMaterialRecord>(1132538);
             if (liquidMaterialStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid LiquidMaterial.db2 file format!");
                 return false;
             }
 
-            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>("DBFilesClient\\LiquidType.db2");
+            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>(1371380);
             if (liquidTypeStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid LiquidType.db2 file format!\n");
@@ -113,17 +113,33 @@ namespace DataExtractor
             return BitConverter.ToUInt64(hiResHoles, 0) != 0;
         }
 
-        public static bool ConvertADT(CASCHandler cascHandler, string inputPath, string outputPath, int cell_y, int cell_x, bool ignoreDeepWater)
+        public static bool ConvertADT(CASCHandler cascHandler, string fileName, string mapName, string outputPath, int gx, int gy, bool ignoreDeepWater)
         {
             ChunkedFile adt = new ChunkedFile();
-            if (!adt.loadFile(cascHandler, inputPath))
+
+            if (!adt.loadFile(cascHandler, fileName))
                 return false;
 
+            return ConvertADT(adt, mapName, outputPath, gx, gy, cascHandler.Config.GetBuildNumber(), ignoreDeepWater);
+        }
+
+        public static bool ConvertADT(CASCHandler cascHandler, uint fileDataId, string mapName, string outputPath, int gx, int gy, bool ignoreDeepWater)
+        {
+            ChunkedFile adt = new ChunkedFile();
+
+            if (!adt.loadFile(cascHandler, fileDataId, $"Map {mapName} grid [{gx},{gy}]"))
+                return false;
+
+            return ConvertADT(adt, mapName, outputPath, gx, gy, cascHandler.Config.GetBuildNumber(), ignoreDeepWater);
+        }
+
+        public static bool ConvertADT(ChunkedFile adt, string mapName, string outputPath, int gx, int gy, uint build, bool ignoreDeepWater)
+        {
             // Prepare map header
             map_fileheader map;
             map.mapMagic = MAP_MAGIC;
             map.versionMagic = MAP_VERSION_MAGIC;
-            map.buildMagic = cascHandler.Config.GetBuildNumber();
+            map.buildMagic = build;
 
             // Get area flags data
             for (var x = 0; x < ADT_CELLS_PER_GRID; ++x)
@@ -355,7 +371,7 @@ namespace DataExtractor
                                 liquid_flags[i][j] |= (byte)LiquidTypeMask.Slime;
                                 break;
                             default:
-                                Console.WriteLine($"\nCan't find Liquid type {adtLiquidHeader.LiquidType} for map {inputPath}\nchunk {i},{j}\n");
+                                Console.WriteLine($"\nCan't find Liquid type {adtLiquidHeader.LiquidType} for map {mapName}\nchunk {i},{j}\n");
                                 break;
                         }
 
@@ -554,7 +570,7 @@ namespace DataExtractor
             for (int y = 0; y < ADT_CELLS_PER_GRID; y++)
             {
                 for (int x = 0; x < ADT_CELLS_PER_GRID; x++)
-                { 
+                {
                     if (liquid_entry[y][x] != firstLiquidType || liquid_flags[y][x] != firstLiquidFlag)
                     {
                         fullType = true;
@@ -832,8 +848,6 @@ namespace DataExtractor
             public float gridHeight;
             public float gridMaxHeight;
         }
-
-
     }
 
     public struct map_liquidHeader
@@ -906,6 +920,39 @@ namespace DataExtractor
         public uint ver;
     }
 
+    class wdt_MPHD : IMapStruct
+    {
+        public void Read(byte[] data)
+        {
+            using (var reader = new BinaryReader(new MemoryStream(data)))
+            {
+                fourcc = reader.ReadUInt32();
+                size = reader.ReadUInt32();
+
+                flags = reader.ReadUInt32();
+                lgtFileDataID = reader.ReadUInt32();
+                occFileDataID = reader.ReadUInt32();
+                fogsFileDataID = reader.ReadUInt32();
+                mpvFileDataID = reader.ReadUInt32();
+                texFileDataID = reader.ReadUInt32();
+                wdlFileDataID = reader.ReadUInt32();
+                pd4FileDataID = reader.ReadUInt32();
+            }
+        }
+
+        public uint fourcc;
+        public uint size;
+
+        public uint flags;
+        public uint lgtFileDataID;
+        public uint occFileDataID;
+        public uint fogsFileDataID;
+        public uint mpvFileDataID;
+        public uint texFileDataID;
+        public uint wdlFileDataID;
+        public uint pd4FileDataID;
+    }
+
     class wdt_MAIN : IMapStruct
     {
         public void Read(byte[] data)
@@ -933,6 +980,42 @@ namespace DataExtractor
         {
             public uint flag { get; set; }
             public uint data1 { get; set; }
+        }
+    }
+
+    class wdt_MAID : IMapStruct
+    {
+        public void Read(byte[] data)
+        {
+            using (var reader = new BinaryReader(new MemoryStream(data)))
+            {
+                fourcc = reader.ReadUInt32();
+                size = reader.ReadUInt32();
+
+                for (var x = 0; x < 64; ++x)
+                {
+                    adt_files[x] = new adtData[64];
+
+                    for (var y = 0; y < 64; ++y)
+                        adt_files[x][y] = reader.Read<adtData>();
+                }
+            }
+        }
+
+        public uint fourcc;
+        public uint size;
+        public adtData[][] adt_files = new adtData[64][];
+
+        public struct adtData
+        {
+            public uint rootADT;         // FileDataID of mapname_xx_yy.adt
+            public uint obj0ADT;         // FileDataID of mapname_xx_yy_obj0.adt
+            public uint obj1ADT;         // FileDataID of mapname_xx_yy_obj1.adt
+            public uint tex0ADT;         // FileDataID of mapname_xx_yy_tex0.adt
+            public uint lodADT;          // FileDataID of mapname_xx_yy_lod.adt
+            public uint mapTexture;      // FileDataID of mapname_xx_yy.blp
+            public uint mapTextureN;     // FileDataID of mapname_xx_yy_n.blp
+            public uint minimapTexture;  // FileDataID of mapxx_yy.blp
         }
     }
 
@@ -1242,6 +1325,7 @@ namespace DataExtractor
             return (LiquidVertexFormatType)(-1);
         }
     }
+
     class adt_MFBO : IMapStruct
     {
         public void Read(byte[] data)

@@ -31,7 +31,7 @@ namespace DataExtractor.Mmap
         {
             vmapManager = vm;
 
-            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>("DBFilesClient\\LiquidType.db2");
+            liquidTypeStorage = DBReader.Read<LiquidTypeRecord>(1371380);
             if (liquidTypeStorage == null)
                 Console.WriteLine("Fatal error: Invalid LiquidType.db2 file format!");
         }

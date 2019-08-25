@@ -163,8 +163,11 @@ namespace DataExtractor.CASCLib
             switch (data[0])
             {
                 case 0x45: // E (encrypted)
-                    byte[] decrypted = Decrypt(data, index);
-                    HandleDataBlock(decrypted, index);
+                    (byte[] decryptedData, bool isDecrypted) = Decrypt(data, index);
+                    if (isDecrypted)
+                        HandleDataBlock(decryptedData, index);
+                    else
+                        _memStream.Write(new byte[_dataBlocks[index].DecompSize], 0, _dataBlocks[index].DecompSize);
                     break;
                 case 0x46: // F (frame, recursive)
                     throw new BLTEDecoderException(1, "DecoderFrame not implemented");
@@ -179,7 +182,7 @@ namespace DataExtractor.CASCLib
             }
         }
 
-        private static byte[] Decrypt(byte[] data, int index)
+        private static (byte[] data, bool isDecrypted) Decrypt(byte[] data, int index)
         {
             byte keyNameSize = data[1];
 
@@ -223,14 +226,19 @@ namespace DataExtractor.CASCLib
 
             byte[] key = KeyService.GetKey(keyName);
 
+            bool hasKey = key != null;
+
             if (key == null)
+            {
+                key = new byte[16];
                 throw new BLTEDecoderException(3, "unknown keyname {0:X16}", keyName);
+            }
 
             if (encType == ENCRYPTION_SALSA20)
             {
                 ICryptoTransform decryptor = KeyService.SalsaInstance.CreateDecryptor(key, IV);
 
-                return decryptor.TransformFinalBlock(data, dataOffset, data.Length - dataOffset);
+                return (decryptor.TransformFinalBlock(data, dataOffset, data.Length - dataOffset), hasKey);
             }
             else
             {

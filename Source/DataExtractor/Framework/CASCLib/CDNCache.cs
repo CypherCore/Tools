@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Security.Cryptography;
@@ -8,36 +9,12 @@ namespace DataExtractor.CASCLib
     public class CacheMetaData
     {
         public long Size { get; }
-        public byte[] MD5 { get; }
+        public string MD5 { get; }
 
-        public CacheMetaData(long size, byte[] md5)
+        public CacheMetaData(long size, string md5)
         {
             Size = size;
             MD5 = md5;
-        }
-
-        public void Save(string file)
-        {
-            File.WriteAllText(file + ".dat", $"{Size} {MD5.ToHexString()}");
-        }
-
-        public static CacheMetaData Load(string file)
-        {
-            if (File.Exists(file + ".dat"))
-            {
-                string[] tokens = File.ReadAllText(file + ".dat").Split(' ');
-                return new CacheMetaData(Convert.ToInt64(tokens[0]), tokens[1].ToByteArray());
-            }
-
-            return null;
-        }
-
-        public static CacheMetaData AddToCache(HttpWebResponse resp, string file)
-        {
-            string md5 = resp.Headers[HttpResponseHeader.ETag].Split(':')[0].Substring(1);
-            CacheMetaData meta = new CacheMetaData(resp.ContentLength, md5.ToByteArray());
-            meta.Save(file);
-            return meta;
         }
     }
 
@@ -46,18 +23,49 @@ namespace DataExtractor.CASCLib
         public static bool Enabled { get; set; } = true;
         public static bool CacheData { get; set; } = false;
         public static bool Validate { get; set; } = true;
-
-        private readonly string _cachePath;
-        private readonly SyncDownloader _downloader = new SyncDownloader();
+        public static bool ValidateFast { get; set; } = true;
+        public static string CachePath { get; set; } = "cache";
 
         private readonly MD5 _md5 = MD5.Create();
 
-        public CDNCache(string path)
+        private readonly Dictionary<string, Stream> _dataStreams = new Dictionary<string, Stream>(StringComparer.OrdinalIgnoreCase);
+
+        private readonly Dictionary<string, CacheMetaData> _metaData;
+
+        private readonly CASCConfig _config;
+
+        private static CDNCache _instance;
+        public static CDNCache Instance => _instance;
+
+        private CDNCache(CASCConfig config)
         {
-            _cachePath = path;
+            if (Enabled)
+            {
+                _config = config;
+
+                string metaFile = Path.Combine(CachePath, "cache.meta");
+
+                _metaData = new Dictionary<string, CacheMetaData>(StringComparer.OrdinalIgnoreCase);
+
+                if (File.Exists(metaFile))
+                {
+                    var lines = File.ReadLines(metaFile);
+
+                    foreach (var line in lines)
+                    {
+                        string[] tokens = line.Split(' ');
+                        _metaData[tokens[0]] = new CacheMetaData(Convert.ToInt64(tokens[1]), tokens[2]);
+                    }
+                }
+            }
         }
 
-        public MemoryStream OpenFile(string name, string url, bool isData)
+        public static void Init(CASCConfig config)
+        {
+            _instance = new CDNCache(config);
+        }
+
+        public Stream OpenFile(string cdnPath, bool isData)
         {
             if (!Enabled)
                 return null;
@@ -65,42 +73,238 @@ namespace DataExtractor.CASCLib
             if (isData && !CacheData)
                 return null;
 
-            string file = Path.Combine(_cachePath, name);
+            string file = Path.Combine(CachePath, cdnPath);
+
+            Stream stream = GetDataStream(file, cdnPath);
+
+            if (stream != null)
+            {
+                numFilesOpened++;
+            }
+
+            return stream;
+        }
+
+        private Stream GetDataStream(string file, string cdnPath)
+        {
+            string fileName = Path.GetFileName(file);
+
+            if (_dataStreams.TryGetValue(fileName, out Stream stream))
+                return stream;
 
             FileInfo fi = new FileInfo(file);
 
             if (!fi.Exists)
-                _downloader.DownloadFile(url, file);
-
-            if (Validate)
             {
-                CacheMetaData meta = CacheMetaData.Load(file) ?? _downloader.GetMetaData(url, file);
+                if (!DownloadFile(cdnPath, file))
+                    return null;
+            }
+
+            stream = fi.Open(FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+            if (Validate || ValidateFast)
+            {
+                if (!_metaData.TryGetValue(fileName, out CacheMetaData meta))
+                    meta = GetMetaData(cdnPath, fileName);
 
                 if (meta == null)
                     throw new Exception(string.Format("unable to validate file {0}", file));
 
                 bool sizeOk, md5Ok;
 
-                using (FileStream fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    sizeOk = fs.Length == meta.Size;
-                    md5Ok = _md5.ComputeHash(fs).EqualsTo(meta.MD5);
-                }
+                sizeOk = stream.Length == meta.Size;
+                md5Ok = ValidateFast || _md5.ComputeHash(stream).ToHexString() == meta.MD5;
 
-                if (!sizeOk || !md5Ok)
-                    _downloader.DownloadFile(url, file);
+                if (sizeOk && md5Ok)
+                {
+                    _dataStreams.Add(fileName, stream);
+                    return stream;
+                }
+                else
+                {
+                    stream.Close();
+                    _metaData.Remove(fileName);
+                    fi.Delete();
+                    return GetDataStream(file, cdnPath);
+                }
             }
 
-            MemoryStream ms = new MemoryStream();
-            using (FileStream fileStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                fileStream.CopyTo(ms);
-
-            return ms;
+            _dataStreams.Add(fileName, stream);
+            return stream;
         }
 
-        public bool HasFile(string name)
+        private CacheMetaData CacheFile(HttpWebResponse resp, string fileName)
         {
-            return File.Exists(Path.Combine(_cachePath, name));
+            string md5 = resp.Headers[HttpResponseHeader.ETag].Split(':')[0].Substring(1);
+            CacheMetaData meta = new CacheMetaData(resp.ContentLength, md5);
+            _metaData[fileName] = meta;
+
+            using (var sw = File.AppendText(Path.Combine(CachePath, "cache.meta")))
+            {
+                sw.WriteLine(string.Format("{0} {1} {2}", fileName, resp.ContentLength, md5.ToUpper()));
+            }
+
+            return meta;
+        }
+
+        public void InvalidateFile(string fileName)
+        {
+            fileName = fileName.ToLower();
+            _metaData.Remove(fileName);
+
+            if (_dataStreams.TryGetValue(fileName, out Stream stream))
+                stream.Dispose();
+
+            _dataStreams.Remove(fileName);
+
+            string file = _config.CDNPath + "/data/" + fileName.Substring(0, 2) + "/" + fileName.Substring(2, 2) + "/" + fileName;
+
+            File.Delete(Path.Combine(CachePath, file));
+
+            using (var sw = File.AppendText(Path.Combine(CachePath, "cache.meta")))
+            {
+                foreach (var meta in _metaData)
+                {
+                    sw.WriteLine($"{meta.Key} {meta.Value.Size} {meta.Value.MD5}");
+                }
+            }
+        }
+
+        public static TimeSpan timeSpentDownloading = TimeSpan.Zero;
+        public static int numFilesOpened = 0;
+        public static int numFilesDownloaded = 0;
+
+        private bool DownloadFile(string cdnPath, string path, int numRetries = 0)
+        {
+            if (numRetries >= 5)
+                return false;
+
+            string url = "http://" + _config.CDNHost + "/" + cdnPath;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+
+            //using (var client = new HttpClient())
+            //{
+            //    var msg = client.GetAsync(url).Result;
+
+            //    using (Stream fs = new FileStream(path, FileMode.Create, FileAccess.Write))
+            //    {
+            //        //CacheMetaData.AddToCache(resp, path);
+            //        //CopyToStream(stream, fs, resp.ContentLength);
+
+            //        msg.Content.CopyToAsync(fs).Wait();
+            //    }
+            //}
+
+            DateTime startTime = DateTime.Now;
+
+            //long fileSize = GetFileSize(cdnPath);
+
+            //if (fileSize == -1)
+            //    return false;
+
+            HttpWebRequest req = WebRequest.CreateHttp(url);
+            //req.AddRange(0, fileSize - 1);
+
+            HttpWebResponse resp;
+
+            try
+            {
+                using (resp = (HttpWebResponse)req.GetResponse())
+                using (Stream stream = resp.GetResponseStream())
+                using (Stream fs = new FileStream(path, FileMode.Create, FileAccess.Write))
+                {
+                    stream.CopyToStream(fs, resp.ContentLength);
+                    CacheFile(resp, Path.GetFileName(path));
+                }
+            }
+            catch (WebException exc)
+            {
+                resp = (HttpWebResponse)exc.Response;
+
+                if (exc.Status == WebExceptionStatus.ProtocolError && resp.StatusCode == (HttpStatusCode)429)
+                {
+                    return DownloadFile(cdnPath, path, numRetries + 1);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            TimeSpan timeSpent = DateTime.Now - startTime;
+            timeSpentDownloading += timeSpent;
+            numFilesDownloaded++;
+
+            return true;
+        }
+
+        private long GetFileSize(string cdnPath, int numRetries = 0)
+        {
+            if (numRetries >= 5)
+                return -1;
+
+            string url = "http://" + _config.CDNHost + "/" + cdnPath;
+
+            HttpWebRequest req = WebRequest.CreateHttp(url);
+            req.Method = "HEAD";
+
+            HttpWebResponse resp;
+
+            try
+            {
+                using (resp = (HttpWebResponse)req.GetResponse())
+                {
+                    return resp.ContentLength;
+                }
+            }
+            catch (WebException exc)
+            {
+                resp = (HttpWebResponse)exc.Response;
+
+                if (exc.Status == WebExceptionStatus.ProtocolError && resp.StatusCode == (HttpStatusCode)429)
+                {
+                    return GetFileSize(cdnPath, numRetries + 1);
+                }
+                else
+                {
+                    return -1;
+                }
+            }
+        }
+
+        private CacheMetaData GetMetaData(string cdnPath, string fileName, int numRetries = 0)
+        {
+            if (numRetries >= 5)
+                return null;
+
+            string url = "http://" + _config.CDNHost + "/" + cdnPath;
+
+            HttpWebRequest req = WebRequest.CreateHttp(url);
+            req.Method = "HEAD";
+
+            HttpWebResponse resp;
+
+            try
+            {
+                using (resp = (HttpWebResponse)req.GetResponse())
+                {
+                    return CacheFile(resp, fileName);
+                }
+            }
+            catch (WebException exc)
+            {
+                resp = (HttpWebResponse)exc.Response;
+
+                if (exc.Status == WebExceptionStatus.ProtocolError && resp.StatusCode == (HttpStatusCode)429)
+                {
+                    return GetMetaData(cdnPath, fileName, numRetries + 1);
+                }
+                else
+                {
+                    return null;
+                }
+            }
         }
     }
 }

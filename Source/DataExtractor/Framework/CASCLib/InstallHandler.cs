@@ -78,10 +78,15 @@ namespace DataExtractor.CASCLib
 
         public InstallEntry GetEntry(string name)
         {
-            return InstallData.Where(i => i.Name == name).FirstOrDefault();
+            return InstallData.Where(i => i.Name.ToLower() == name.ToLower()).FirstOrDefault();
         }
 
-        public IEnumerable<InstallEntry> GetEntries(string tag)
+        public IEnumerable<InstallEntry> GetEntriesByName(string name)
+        {
+            return InstallData.Where(i => i.Name.ToLower() == name.ToLower());
+        }
+
+        public IEnumerable<InstallEntry> GetEntriesByTag(string tag)
         {
             foreach (var entry in InstallData)
                 if (entry.Tags.Any(t => t.Name == tag))
@@ -99,6 +104,14 @@ namespace DataExtractor.CASCLib
         {
             foreach (var entry in InstallData)
                 yield return entry;
+        }
+
+        public void Print()
+        {
+            for (int i = 0; i < InstallData.Count; ++i)
+            {
+                var data = InstallData[i];
+            }
         }
 
         public void Clear()

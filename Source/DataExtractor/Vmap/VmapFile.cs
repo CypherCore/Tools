@@ -28,7 +28,7 @@ namespace DataExtractor.Vmap
     {
         public static void ExtractGameobjectModels()
         {
-            var GameObjectDisplayInfoStorage = DBReader.Read<GameObjectDisplayInfoRecord>("DBFilesClient\\GameObjectDisplayInfo.db2");
+            var GameObjectDisplayInfoStorage = DBReader.Read<GameObjectDisplayInfoRecord>(1266277);
             if (GameObjectDisplayInfoStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid GameObjectDisplayInfo.db2 file format!\n");
@@ -82,19 +82,19 @@ namespace DataExtractor.Vmap
 
         public static void ParsMapFiles()
         {
-            var mapStorage = DBReader.Read<MapRecord>("DBFilesClient\\Map.db2");
+            var mapStorage = DBReader.Read<MapRecord>(1349477);
             if (mapStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
                 return;
             }
 
-            Dictionary<uint, Tuple<string, int>> map_ids = new Dictionary<uint, Tuple<string, int>>();
+            Dictionary<uint, MapRecord> map_ids = new Dictionary<uint, MapRecord>();
             List<uint> maps_that_are_parents = new List<uint>();
 
             foreach (var record in mapStorage.Values)
             {
-                map_ids[record.Id] = Tuple.Create(record.Directory, (int)record.ParentMapID);
+                map_ids[record.Id] = record;
                 if (record.ParentMapID >= 0)
                     maps_that_are_parents.Add((uint)record.ParentMapID);
             }
@@ -105,11 +105,13 @@ namespace DataExtractor.Vmap
                 var wdtFile = wdts.LookupByKey(mapId);
                 if (wdtFile == null)
                 {
-                    string fn = $"World\\Maps\\{map_ids[mapId].Item1}\\{map_ids[mapId].Item1}";
-                    bool v1 = maps_that_are_parents.Contains(mapId);
-                    bool v2 = map_ids[mapId].Item2 != -1;
+                    uint fileDataId = map_ids[mapId].WdtFileDataID;
+                    if (fileDataId == 0)
+                        return null;
 
-                    wdtFile = new WDTFile(fn, maps_that_are_parents.Contains(mapId));
+                    string directory = map_ids[mapId].Directory;
+
+                    wdtFile = new WDTFile(fileDataId, directory, maps_that_are_parents.Contains(mapId));
                     wdts.Add(mapId, wdtFile);
                     if (!wdtFile.init(mapId))
                     {
@@ -126,7 +128,7 @@ namespace DataExtractor.Vmap
                 WDTFile WDT = getWDT(pair.Key);
                 if (WDT != null)
                 {
-                    WDTFile parentWDT = pair.Value.Item2 >= 0 ? getWDT((uint)pair.Value.Item2) : null;
+                    WDTFile parentWDT = pair.Value.ParentMapID >= 0 ? getWDT((uint)pair.Value.ParentMapID) : null;
                     Console.Write($"Processing Map {pair.Key}\n");
                     for (uint x = 0; x < 64; ++x)
                     {
@@ -144,7 +146,7 @@ namespace DataExtractor.Vmap
                                 ADTFile parentADT = parentWDT.GetMap(x, y);
                                 if (parentADT != null)
                                 {
-                                    parentADT.init(pair.Key, (uint)pair.Value.Item2);
+                                    parentADT.init(pair.Key, (uint)pair.Value.ParentMapID);
                                 }
                             }
                         }

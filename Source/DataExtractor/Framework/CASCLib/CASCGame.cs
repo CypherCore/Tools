@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 namespace DataExtractor.CASCLib
 {
@@ -40,14 +41,38 @@ namespace DataExtractor.CASCLib
                 if (File.Exists(Path.Combine(path, "Diablo III.exe")))
                     return CASCGameType.D3;
 
-                if (File.Exists(Path.Combine(path, "Wow.exe")))
-                    return CASCGameType.WoW;
+                string[] wowWinBins = new string[] { "Wow.exe", "WowT.exe", "WowB.exe" };
 
-                if (File.Exists(Path.Combine(path, "WowT.exe")))
-                    return CASCGameType.WoW;
+                for (int i = 0; i < wowWinBins.Length; i++)
+                {
+                    if (File.Exists(Path.Combine(path, wowWinBins[i])))
+                        return CASCGameType.WoW;
+                }
 
-                if (File.Exists(Path.Combine(path, "WowB.exe")))
-                    return CASCGameType.WoW;
+                string[] wowOsxBins = new string[] { "World of Warcraft.app", "World of Warcraft Test.app", "World of Warcraft Beta.app" };
+
+                for (int i = 0; i < wowOsxBins.Length; i++)
+                {
+                    if (Directory.Exists(Path.Combine(path, wowOsxBins[i])))
+                        return CASCGameType.WoW;
+                }
+
+                string[] subFolders = new string[] { "_retail_", "_ptr_", "_classic_", "_classic_beta_" };
+
+                foreach (var subFolder in subFolders)
+                {
+                    foreach (var wowBin in wowWinBins)
+                    {
+                        if (File.Exists(Path.Combine(path, subFolder, wowBin)))
+                            return CASCGameType.WoW;
+                    }
+
+                    foreach (var wowBin in wowOsxBins)
+                    {
+                        if (Directory.Exists(Path.Combine(path, subFolder, wowBin)))
+                            return CASCGameType.WoW;
+                    }
+                }
 
                 if (File.Exists(Path.Combine(path, "Agent.exe")))
                     return CASCGameType.Agent;
@@ -62,10 +87,10 @@ namespace DataExtractor.CASCLib
                     return CASCGameType.S1;
             }
 
-            return CASCGameType.Unknown;
+            throw new Exception("Unable to detect game type by path");
         }
 
-        public static CASCGameType DetectOnlineGame(string uid)
+        public static CASCGameType DetectGameByUid(string uid)
         {
             if (uid.StartsWith("hero"))
                 return CASCGameType.HotS;
@@ -103,7 +128,7 @@ namespace DataExtractor.CASCLib
             if (uid.StartsWith("dst2"))
                 return CASCGameType.Destiny2;
 
-            return CASCGameType.Unknown;
+            throw new Exception("Unable to detect game type by uid");
         }
 
         public static string GetDataFolder(CASCGameType gameType)
@@ -117,13 +142,13 @@ namespace DataExtractor.CASCLib
             if (gameType == CASCGameType.Hearthstone)
                 return "Hearthstone_Data";
 
-            if (gameType == CASCGameType.WoW || gameType == CASCGameType.D3)
+            if (gameType == CASCGameType.WoW || gameType == CASCGameType.D3 || gameType == CASCGameType.WC3)
                 return "Data";
 
             if (gameType == CASCGameType.Overwatch)
                 return "data/casc";
 
-            return null;
+            throw new Exception("GetDataFolder called with unsupported gameType");
         }
 
         public static bool SupportsLocaleSelection(CASCGameType gameType)

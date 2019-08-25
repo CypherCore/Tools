@@ -48,6 +48,28 @@ namespace DataExtractor
             return false;
         }
 
+        public bool loadFile(CASCHandler cascHandler, uint fileDataId, string description)
+        {
+            var file = cascHandler.OpenFile((int)fileDataId);
+            if (file == null)
+                return false;
+
+            var fileSize = file.Length;
+            if (fileSize == 0xFFFFFFFF)
+                return false;
+
+            data_size = (uint)fileSize;
+            _data = new BinaryReader(file).ReadBytes((int)data_size);
+
+            parseChunks();
+            if (prepareLoadedData())
+                return true;
+
+            Console.WriteLine($"Error loading {description}\n");
+
+            return false;
+        }
+
         bool prepareLoadedData()
         {
             FileChunk chunk = GetChunk("MVER");
@@ -67,14 +89,16 @@ namespace DataExtractor
 
         public static Dictionary<string, string> InterestingChunks = new Dictionary<string, string>()
         {
-            {"REVM", "MVER" },
-            {"NIAM", "MAIN" },
-            {"O2HM", "MH2O" },
-            {"KNCM", "MCNK" },
-            {"TVCM", "MCVT" },
-            {"OMWM", "MWMO" },
-            {"QLCM", "MCLQ" },
-            {"OBFM", "MFBO" }
+            {"REVM", "MVER"},
+            {"NIAM", "MAIN"},
+            {"O2HM", "MH2O"},
+            {"KNCM", "MCNK"},
+            {"TVCM", "MCVT"},
+            {"OMWM", "MWMO"},
+            {"QLCM", "MCLQ"},
+            {"OBFM", "MFBO"},
+            {"DHPM", "MPHD"},
+            {"DIAM", "MAID"}
         };
 
         public static bool IsInterestingChunk(string fcc)

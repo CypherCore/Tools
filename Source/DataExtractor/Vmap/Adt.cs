@@ -28,7 +28,14 @@ namespace DataExtractor.Vmap
     {
         public ADTFile(string filename, bool cache)
         {
-            Adtfilename = filename;
+            _fileStream = Program.CascHandler.OpenFile(filename);
+            cacheable = cache;
+            dirfileCache = null;
+        }
+
+        public ADTFile(uint fileDataId, bool cache)
+        {
+            _fileStream = Program.CascHandler.OpenFile((int)fileDataId);
             cacheable = cache;
             dirfileCache = null;
         }
@@ -38,8 +45,7 @@ namespace DataExtractor.Vmap
             if (dirfileCache != null)
                 return initFromCache(map_num, originalMapId);
 
-            Stream stream = Program.CascHandler.OpenFile(Adtfilename);
-            if (stream == null)
+            if (_fileStream == null)
                 return false;
 
             if (cacheable)
@@ -48,7 +54,7 @@ namespace DataExtractor.Vmap
             string dirname = Program.WmoDirectory + "dir_bin";
             using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(dirname, FileMode.Append, FileAccess.Write)))
             {
-                using (BinaryReader binaryReader = new BinaryReader(stream))
+                using (BinaryReader binaryReader = new BinaryReader(_fileStream))
                 {
                     long fileLength = binaryReader.BaseStream.Length;
                     while (binaryReader.BaseStream.Position < fileLength)
@@ -58,13 +64,7 @@ namespace DataExtractor.Vmap
 
                         long nextpos = binaryReader.BaseStream.Position + size;
 
-                        if (fourcc == "MCIN")
-                        {
-                        }
-                        else if (fourcc == "MTEX")
-                        {
-                        }
-                        else if (fourcc == "MMDX")
+                        if (fourcc == "MMDX")
                         {
                             if (size != 0)
                             {
@@ -175,7 +175,7 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        string Adtfilename;
+        Stream _fileStream;
         bool cacheable;
         List<ADTOutputCache> dirfileCache = new List<ADTOutputCache>();
         List<string> WmoInstanceNames = new List<string>();

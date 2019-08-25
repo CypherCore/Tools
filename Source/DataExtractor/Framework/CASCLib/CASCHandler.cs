@@ -34,11 +34,26 @@ namespace DataExtractor.CASCLib
             {
                 using (var fs = OpenInstallFile(EncodingHandler, this))
                     InstallHandler = new InstallHandler(fs);
-
             }
         }
 
-        public static CASCHandler OpenStorage(CASCConfig config)
+        public static CASCHandler OpenStorage(CASCConfig config) => Open(config);
+
+        public static CASCHandler OpenLocalStorage(string basePath, string product = null)
+        {
+            CASCConfig config = CASCConfig.LoadLocalStorageConfig(basePath, product);
+
+            return Open(config);
+        }
+
+        public static CASCHandler OpenOnlineStorage(string product, string region = "us")
+        {
+            CASCConfig config = CASCConfig.LoadOnlineStorageConfig(product, region);
+
+            return Open(config);
+        }
+
+        private static CASCHandler Open(CASCConfig config)
         {
             return new CASCHandler(config);
         }
@@ -46,7 +61,7 @@ namespace DataExtractor.CASCLib
         public override bool FileExists(int fileDataId)
         {
             if (Root is WowRootHandler rh)
-                return FileExists(rh.GetHashByFileDataId(fileDataId));
+                return rh.FileExist(fileDataId);
             return false;
         }
 

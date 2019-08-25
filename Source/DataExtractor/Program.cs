@@ -51,6 +51,8 @@ namespace DataExtractor
 
             Console.ForegroundColor = ConsoleColor.Green;
 
+            CheckFiles.Start(BaseDirectory);
+
             uint localeMask = 0;
 
             CASCConfig config = CASCConfig.LoadLocalStorageConfig(BaseDirectory);
@@ -86,7 +88,8 @@ namespace DataExtractor
 
             Console.WriteLine("Initializing CASC library...");
             CascHandler = CASCHandler.OpenStorage(config);
-            CascHandler.Root.SetFlags(firstInstalledLocale, ContentFlags.None);
+            CascHandler.Root.SetFlags(firstInstalledLocale);
+            _build = CascHandler.Config.GetBuildNumber();
             Console.WriteLine("Done.");
 
             while (true)
@@ -151,29 +154,29 @@ namespace DataExtractor
                 string currentPath = $"{path}/{locale}";
                 CreateDirectory(currentPath);
 
-                CascHandler.Root.SetFlags(SharedConst.WowLocaleToCascLocaleFlags[(int)locale], ContentFlags.None);
-                foreach (var fileName in FileList.DBFilesClientList)
+                CascHandler.Root.SetFlags(SharedConst.WowLocaleToCascLocaleFlags[(int)locale]);
+                foreach (var db2 in FileList.DBFilesClientList)
                 {
-                    var dbcStream = CascHandler.OpenFile(fileName);
+                    var dbcStream = CascHandler.OpenFile(db2.FileDataId);
                     if (dbcStream == null)
                     {
-                        Console.WriteLine($"Unable to open file {fileName} in the archive for locale {locale}\n");
+                        Console.WriteLine($"Unable to open file {db2.FileName} in the archive for locale {locale}\n");
                         continue;
                     }
 
-                    FileWriter.WriteFile(dbcStream, currentPath + $"/{ fileName.Replace(@"\\", "").Replace(@"DBFilesClient\", "")}");
+                    FileWriter.WriteFile(dbcStream, currentPath + $"/{ db2.FileName.Replace(@"\\", "").Replace(@"DBFilesClient\", "")}");
                     count++;
                 }
             }
 
             Console.WriteLine($"Extracted {count} db2 files.");
 
-            CascHandler.Root.SetFlags(firstInstalledLocale, ContentFlags.None);
+            CascHandler.Root.SetFlags(firstInstalledLocale);
         }
 
         static void ExtractCameraFiles()
         {
-            Dictionary<uint, CinematicCameraRecord> storage = DBReader.Read<CinematicCameraRecord>("DBFilesClient\\CinematicCamera.db2");
+            Dictionary<uint, CinematicCameraRecord> storage = DBReader.Read<CinematicCameraRecord>(1294214);
             if (storage == null)
             {
                 Console.WriteLine("Invalid CinematicCamera.db2 file format. Camera extract aborted.\n");
@@ -189,10 +192,10 @@ namespace DataExtractor
             uint count = 0;
             foreach (var cameraRecord in storage.Values)
             {
-                var cameraStream = CascHandler.OpenFile((int)cameraRecord.ModelFileDataID);
+                var cameraStream = CascHandler.OpenFile((int)cameraRecord.FileDataID);
                 if (cameraStream != null)
                 {
-                    string file = path + $"/FILE{cameraRecord.ModelFileDataID:X8}.xxx";
+                    string file = path + $"/FILE{cameraRecord.FileDataID:X8}.xxx";
                     if (!File.Exists(file))
                     {
                         FileWriter.WriteFile(cameraStream, file);
@@ -200,7 +203,7 @@ namespace DataExtractor
                     }
                 }
                 else
-                    Console.WriteLine($"Unable to open file {$"File{cameraRecord.ModelFileDataID:X8}.xxx"} in the archive: \n");
+                    Console.WriteLine($"Unable to open file {$"File{cameraRecord.FileDataID:X8}.xxx"} in the archive: \n");
             }
 
             Console.WriteLine($"Extracted {count} Camera files.");
@@ -214,16 +217,16 @@ namespace DataExtractor
             CreateDirectory(path);
 
             uint count = 0;
-            foreach (var fileName in FileList.GameTables)
+            foreach (var gt in FileList.GameTables)
             {
-                var dbcFile = CascHandler.OpenFile(fileName);
+                var dbcFile = CascHandler.OpenFile(gt.FileDataId);
                 if (dbcFile == null)
                 {
-                    Console.WriteLine($"Unable to open file {fileName} in the archive\n");
+                    Console.WriteLine($"Unable to open file {gt.FileName} in the archive\n");
                     continue;
                 }
 
-                string file = $"{path}/{fileName.Replace("GameTables\\", "")}";
+                string file = $"{path}/{gt.FileName.Replace("GameTables\\", "")}";
                 if (!File.Exists(file))
                 {
                     FileWriter.WriteFile(dbcFile, file);
@@ -249,7 +252,7 @@ namespace DataExtractor
             int count = 1;
 
             Console.WriteLine("Loading DB2 files");
-            var mapStorage = DBReader.Read<MapRecord>("DBFilesClient\\Map.db2");
+            var mapStorage = DBReader.Read<MapRecord>(1349477);
             if (mapStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid Map.db2 file format!");
@@ -260,20 +263,29 @@ namespace DataExtractor
             {
                 Console.Write($"Extract {record.Directory} ({count++}/{mapStorage.Count})                  \n");
                 // Loadup map grid data
-                string storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}.wdt";
                 ChunkedFile wdt = new ChunkedFile();
-                if (wdt.loadFile(CascHandler, storagePath))
+                if (wdt.loadFile(CascHandler, record.WdtFileDataID, $"WDT for map {record.Id}"))
                 {
+                    wdt_MPHD mphd = wdt.GetChunk("MPHD").As<wdt_MPHD>();
                     wdt_MAIN main = wdt.GetChunk("MAIN").As<wdt_MAIN>();
                     for (int y = 0; y < 64; ++y)
                     {
                         for (int x = 0; x < 64; ++x)
                         {
-                            if (Convert.ToBoolean(main.adt_list[y][x].flag & 0x1))
+                            if (!Convert.ToBoolean(main.adt_list[y][x].flag & 0x1))
+                                continue;
+
+                            string outputFileName = $"{path}/{record.Id:D4}_{y:D2}_{x:D2}.map";
+                            bool ignoreDeepWater = MapFile.IsDeepWaterIgnored(record.Id, y, x);
+                            if (mphd != null && (mphd.flags & 0x200) != 0)
                             {
-                                storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}.adt";
-                                string outputFileName = $"{path}/{record.Id:D4}_{y:D2}_{x:D2}.map";
-                                MapFile.ConvertADT(CascHandler, storagePath, outputFileName, y, x, MapFile.IsDeepWaterIgnored(record.Id, y, x));
+                                wdt_MAID maid = wdt.GetChunk("MAID").As<wdt_MAID>();
+                                MapFile.ConvertADT(CascHandler, maid.adt_files[y][x].rootADT, record.MapName, outputFileName, y, x, ignoreDeepWater);
+                            }
+                            else
+                            {
+                                string storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}.adt";
+                                MapFile.ConvertADT(CascHandler, storagePath, record.MapName, outputFileName, y, x, ignoreDeepWater);
                             }
                         }
                         // draw progress bar
@@ -342,7 +354,7 @@ namespace DataExtractor
             Console.WriteLine("Extracting MMap files...");
             var vm = new Framework.Collision.VMapManager2();
 
-            var mapStorage = DBReader.Read<MapRecord>("DBFilesClient\\Map.db2");
+            var mapStorage = DBReader.Read<MapRecord>(1349477);
             if (mapStorage == null)
             {
                 Console.WriteLine("Fatal error: Invalid Map.db2 file format!\n");
@@ -419,6 +431,8 @@ namespace DataExtractor
         }
 
         public static CASCHandler CascHandler { get; set; }
+
+        static uint _build;
 
         static LocaleFlags installedLocalesMask { get; set; }
         static LocaleFlags firstInstalledLocale { get; set; }
