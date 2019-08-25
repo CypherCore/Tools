@@ -1,8 +1,8 @@
 language: csharp
-dist: trusty
+dist: xenial
 sudo: required
 mono: none
-dotnet: 2.1
+dotnet: 2.2
 script:
   - dotnet restore
   - dotnet build
