@@ -125,13 +125,13 @@ namespace DataExtractor.Vmap
             if (_adtCache != null && _adtCache[x][y] != null)
                 return _adtCache[x][y];
 
-            if (!Convert.ToBoolean(_adtInfo.Data[x][y].Flag & 1))
+            if (!Convert.ToBoolean(_adtInfo.Data[y][x].Flag & 1))
                 return null;
 
             ADTFile adt;
             string name = $"World\\Maps\\{_mapName}\\{_mapName}_{x}_{y}_obj0.adt";
             if ((_header.Flags & 0x200) != 0)
-                adt = new ADTFile(_adtFileDataIds.Data[x][y].Obj0ADT, _adtCache != null);
+                adt = new ADTFile(_adtFileDataIds.Data[y][x].Obj0ADT, _adtCache != null);
             else
                 adt = new ADTFile(name, _adtCache != null);
 
