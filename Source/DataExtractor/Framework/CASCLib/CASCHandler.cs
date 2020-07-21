@@ -95,6 +95,8 @@ namespace DataExtractor.CASCLib
             if (Root is WowRootHandler rh)
                 return OpenFile(rh.GetHashByFileDataId(fileDataId));
 
+            if (CASCConfig.ThrowOnFileNotFound)
+                throw new FileNotFoundException("FileData: " + fileDataId.ToString());
             return null;
         }
 

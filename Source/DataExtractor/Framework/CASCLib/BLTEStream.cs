@@ -231,7 +231,9 @@ namespace DataExtractor.CASCLib
             if (key == null)
             {
                 key = new byte[16];
-                throw new BLTEDecoderException(3, "unknown keyname {0:X16}", keyName);
+                if (CASCConfig.ThrowOnMissingDecryptionKey && index == 0)
+                    throw new BLTEDecoderException(3, "unknown keyname {0:X16}", keyName);
+                //return null;
             }
 
             if (encType == ENCRYPTION_SALSA20)

@@ -78,9 +78,7 @@ namespace DataExtractor.CASCLib
             Stream stream = GetDataStream(file, cdnPath);
 
             if (stream != null)
-            {
                 numFilesOpened++;
-            }
 
             return stream;
         }

@@ -59,7 +59,7 @@ namespace DataExtractor
                 return false;
 
             data_size = (uint)fileSize;
-            _data = new BinaryReader(file).ReadBytes((int)data_size);
+             _data = new BinaryReader(file).ReadBytes((int)data_size);
 
             parseChunks();
             if (prepareLoadedData())

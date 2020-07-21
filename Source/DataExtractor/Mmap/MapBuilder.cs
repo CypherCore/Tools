@@ -78,12 +78,6 @@ namespace DataExtractor.Mmap
                 var tiles = mapTile.m_tiles;
                 mapID = mapTile.m_mapId;
 
-                if (mapID == 720)
-                {
-
-                }
-
-
                 files = Directory.GetFiles("vmaps", $"{mapID:D4}_*.vmtile").Select(Path.GetFileName).ToArray();
                 for (int i = 0; i < files.Length; ++i)
                 {

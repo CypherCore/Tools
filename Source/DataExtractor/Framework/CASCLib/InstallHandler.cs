@@ -27,10 +27,7 @@ namespace DataExtractor.CASCLib
         private List<InstallEntry> InstallData = new List<InstallEntry>();
         private static readonly Jenkins96 Hasher = new Jenkins96();
 
-        public int Count
-        {
-            get { return InstallData.Count; }
-        }
+        public int Count => InstallData.Count;
 
         public InstallHandler(BinaryReader stream)
         {
@@ -104,14 +101,6 @@ namespace DataExtractor.CASCLib
         {
             foreach (var entry in InstallData)
                 yield return entry;
-        }
-
-        public void Print()
-        {
-            for (int i = 0; i < InstallData.Count; ++i)
-            {
-                var data = InstallData[i];
-            }
         }
 
         public void Clear()

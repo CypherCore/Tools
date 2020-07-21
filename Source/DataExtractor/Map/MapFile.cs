@@ -884,7 +884,6 @@ namespace DataExtractor
         public byte Height { get; set; }
         public uint OffsetExistsBitmap { get; set; }
         public uint OffsetVertexData { get; set; }
-
         public byte GetOffsetX() { return (byte)(LiquidVertexFormat < 42 ? OffsetX : 0); }
         public byte GetOffsetY() { return (byte)(LiquidVertexFormat < 42 ? OffsetY : 0); }
         public byte GetWidth() { return (byte)(LiquidVertexFormat < 42 ? Width : 8); }
