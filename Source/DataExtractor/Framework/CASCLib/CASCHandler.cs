@@ -27,6 +27,8 @@ namespace DataExtractor.CASCLib
                     DownloadHandler = new DownloadHandler(fs);
             }
 
+            KeyService.LoadKeys();
+
             using (var fs = OpenRootFile(EncodingHandler, this))
                 RootHandler = new WowRootHandler(fs);
 
@@ -86,7 +88,7 @@ namespace DataExtractor.CASCLib
                     return EncodingHandler.GetEntry(installInfos.First().MD5, out enc);
             }
 
-            enc = default(EncodingEntry);
+            enc = default;
             return false;
         }
 

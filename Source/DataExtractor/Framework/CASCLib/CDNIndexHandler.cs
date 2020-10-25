@@ -95,9 +95,9 @@ namespace DataExtractor.CASCLib
                         ParseIndex(fs, i);
                 }
             }
-            catch
+            catch (Exception exc)
             {
-                throw new Exception("DownloadFile failed!");
+                throw new Exception($"DownloadFile failed: {archive} - {exc}");
             }
         }
 
@@ -119,9 +119,9 @@ namespace DataExtractor.CASCLib
                     DownloadIndexFile(archive, i);
                 }
             }
-            catch
+            catch (Exception exc)
             {
-                throw new Exception("OpenFile failed: " + archive);
+                throw new Exception($"OpenFile failed: {archive} - {exc}");
             }
         }
 
@@ -218,8 +218,8 @@ namespace DataExtractor.CASCLib
             //}
 
             HttpWebRequest req = WebRequest.CreateHttp(url);
-            long fileSize = GetFileSize(url);
-            req.AddRange(0, fileSize - 1);
+            //long fileSize = GetFileSize(url);
+            //req.AddRange(0, fileSize - 1);
             using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
             using (Stream respStream = resp.GetResponseStream())
             {
@@ -233,8 +233,8 @@ namespace DataExtractor.CASCLib
         private Stream OpenFile(string url)
         {
             HttpWebRequest req = WebRequest.CreateHttp(url);
-            long fileSize = GetFileSize(url);
-            req.AddRange(0, fileSize - 1);
+            //long fileSize = GetFileSize(url);
+            //req.AddRange(0, fileSize - 1);
             using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
             using (Stream stream = resp.GetResponseStream())
             {
@@ -245,22 +245,9 @@ namespace DataExtractor.CASCLib
             }
         }
 
-        private static long GetFileSize(string url)
-        {
-            HttpWebRequest request = WebRequest.CreateHttp(url);
-            request.Method = "HEAD";
-
-            using (HttpWebResponse resp = (HttpWebResponse)request.GetResponse())
-            {
-                return resp.ContentLength;
-            }
-        }
-
         public IndexEntry GetIndexInfo(MD5Hash key)
         {
-            CDNIndexData.TryGetValue(key, out IndexEntry result);
-
-            return result;
+            return CDNIndexData.GetValueOrDefault(key);
         }
 
         public void Clear()

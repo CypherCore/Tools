@@ -34,7 +34,7 @@ namespace DataExtractor.CASCLib
             return (uint)(val[3] | val[2] << 8 | val[1] << 16 | val[0] << 24);
         }
 
-        public static unsafe T[] CopyTo<T>(this byte[] src) where T : struct
+        public static unsafe T[] CopyTo<T>(this byte[] src) where T : unmanaged
         {
             T[] result = new T[src.Length / Unsafe.SizeOf<T>()];
 

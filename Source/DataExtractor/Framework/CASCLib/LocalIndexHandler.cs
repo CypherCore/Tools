@@ -29,12 +29,8 @@ namespace DataExtractor.CASCLib
             if (idxFiles.Count == 0)
                 throw new FileNotFoundException("idx files missing!");
 
-            int idxIndex = 0;
-
             foreach (var idx in idxFiles)
-            {
                 handler.ParseIndex(idx);
-            }
 
             return handler;
         }
@@ -127,9 +123,7 @@ namespace DataExtractor.CASCLib
             ulong* ptr = (ulong*)&key;
             ptr[1] &= 0xFF;
 
-            LocalIndexData.TryGetValue(key, out IndexEntry result);
-
-            return result;
+            return LocalIndexData.GetValueOrDefault(key);
         }
 
         public void Clear()

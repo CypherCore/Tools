@@ -19,7 +19,6 @@ namespace DataExtractor.CASCLib
         public CASCHandlerBase(CASCConfig config)
         {
             Config = config;
-
             CDNIndex = CDNIndexHandler.Initialize(config);
 
             if (!config.OnlineMode)
@@ -143,16 +142,6 @@ namespace DataExtractor.CASCLib
                 {
                     blte.ExtractToFile(path, name);
                 }
-            }
-        }
-
-        private void ExtractFileLocal(MD5Hash key, string path, string name)
-        {
-            Stream stream = GetLocalDataStream(key);
-
-            using (BLTEStream blte = new BLTEStream(stream, key))
-            {
-                blte.ExtractToFile(path, name);
             }
         }
 

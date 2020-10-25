@@ -140,7 +140,7 @@ namespace DataExtractor.CASCLib
                 {
                     block.CompSize = size - 8;
                     block.DecompSize = size - 8 - 1;
-                    block.Hash = default(MD5Hash);
+                    block.Hash = default;
                 }
 
                 _dataBlocks[i] = block;
@@ -335,16 +335,14 @@ namespace DataExtractor.CASCLib
             throw new InvalidOperationException();
         }
 
+
         protected override void Dispose(bool disposing)
         {
             try
             {
-                if (disposing)
-                {
-                    _stream?.Dispose();
-                    _reader?.Dispose();
-                    _memStream?.Dispose();
-                }
+                _stream?.Dispose();
+                _reader?.Dispose();
+                _memStream?.Dispose();
             }
             finally
             {

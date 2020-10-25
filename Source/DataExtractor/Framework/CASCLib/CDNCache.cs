@@ -133,7 +133,20 @@ namespace DataExtractor.CASCLib
 
         private CacheMetaData CacheFile(HttpWebResponse resp, string fileName)
         {
-            string md5 = resp.Headers[HttpResponseHeader.ETag].Split(':')[0].Substring(1);
+            var etag = resp.Headers[HttpResponseHeader.ETag];
+
+            string md5;
+
+            if (etag != null)
+            {
+                md5 = etag.Split(':')[0].Substring(1);
+            }
+            else
+            {
+                md5 = "0";
+
+            }
+
             CacheMetaData meta = new CacheMetaData(resp.ContentLength, md5);
             _metaData[fileName] = meta;
 
@@ -225,9 +238,7 @@ namespace DataExtractor.CASCLib
                     return DownloadFile(cdnPath, path, numRetries + 1);
                 }
                 else
-                {
                     return false;
-                }
             }
 
             TimeSpan timeSpent = DateTime.Now - startTime;
@@ -265,9 +276,7 @@ namespace DataExtractor.CASCLib
                     return GetFileSize(cdnPath, numRetries + 1);
                 }
                 else
-                {
                     return -1;
-                }
             }
         }
 
@@ -299,9 +308,7 @@ namespace DataExtractor.CASCLib
                     return GetMetaData(cdnPath, fileName, numRetries + 1);
                 }
                 else
-                {
                     return null;
-                }
             }
         }
     }
