@@ -42,12 +42,12 @@ namespace System
         {
             TValue val;
             TKey newkey = (TKey)Convert.ChangeType(key, typeof(TKey));
-            return dict.TryGetValue(newkey, out val) ? val : default(TValue);
+            return dict.TryGetValue(newkey, out val) ? val : default;
         }
         public static TValue LookupByKey<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key)
         {
             TValue val;
-            return dict.TryGetValue(key, out val) ? val : default(TValue);
+            return dict.TryGetValue(key, out val) ? val : default;
         }
 
         #region BinaryReader

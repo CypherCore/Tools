@@ -22,8 +22,8 @@ namespace DataExtractor.Framework.Constants
 {
     class SharedConst
     {
-        public const string VMAP_MAGIC = "VMAP_4.8";
-        public const string RAW_VMAP_MAGIC = "VMAP048";
+        public const string VMAP_MAGIC = "VMAP_4.9";
+        public const string RAW_VMAP_MAGIC = "VMAP049";
 
         public const float LIQUID_TILE_SIZE = 533.333f / 128.0f;
 

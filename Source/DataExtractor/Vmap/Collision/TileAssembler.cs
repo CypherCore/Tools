@@ -232,7 +232,7 @@ namespace DataExtractor.Vmap.Collision
             }
 
             if (!pModelFilename.Contains('\0'))
-                pModelFilename = pModelFilename + ".vmo";
+                pModelFilename += ".vmo";
 
             model.writeFile(iDestDir + "/" + pModelFilename);
         }

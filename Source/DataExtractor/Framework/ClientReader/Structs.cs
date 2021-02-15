@@ -84,6 +84,7 @@ namespace DataExtractor.Framework.ClientReader
         public uint Id;
         public string Directory;
         public string MapName;
+        public string InternalName;
         public string MapDescription0;                               // Horde
         public string MapDescription1;                               // Alliance
         public string PvpShortDescription;

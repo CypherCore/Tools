@@ -452,10 +452,9 @@ namespace DataExtractor.Vmap
                 {
                     // Skip no collision triangles
                     bool isRenderFace = Convert.ToBoolean(MOPY[2 * i] & (int)MopyFlags.Render) && !Convert.ToBoolean(MOPY[2 * i] & (int)MopyFlags.Detail);
-                    bool isDetail = (MOPY[2 * i] & (int)MopyFlags.Detail) != 0;
-                    bool isCollision = (MOPY[2 * i] & (int)MopyFlags.Collision) != 0;
+                    bool isCollision = (MOPY[2 * i] & (int)MopyFlags.Collision) != 0 || isRenderFace;
 
-                    if (!isRenderFace && !isDetail && !isCollision)
+                    if (!isCollision)
                         continue;
 
                     // Use this triangle

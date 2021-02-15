@@ -100,7 +100,7 @@ namespace DataExtractor.Vmap
             }
 
             Dictionary<uint, WDTFile> wdts = new Dictionary<uint, WDTFile>();
-            Func<uint, WDTFile> getWDT = mapId =>
+            WDTFile getWDT(uint mapId)
             {
                 var wdtFile = wdts.LookupByKey(mapId);
                 if (wdtFile == null)
@@ -121,7 +121,7 @@ namespace DataExtractor.Vmap
                 }
 
                 return wdtFile;
-            };
+            }
 
             foreach (var pair in map_ids)
             {
@@ -183,7 +183,7 @@ namespace DataExtractor.Vmap
                     WMOGroup fgroup = new WMOGroup();
                     if (!fgroup.open(froot.groupFileDataIDs[i], froot))
                     {
-                        Console.WriteLine($"Could not open all Group file for: {fileId.ToString()}");
+                        Console.WriteLine($"Could not open all Group file for: {fileId}");
                         file_ok = false;
                         break;
                     }

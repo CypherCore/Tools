@@ -140,8 +140,6 @@ namespace DataExtractor
             return null;
         }
 
-        uint GetDataSize() { return data_size; }
-
         byte[] _data;
         uint data_size;
 

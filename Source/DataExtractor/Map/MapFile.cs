@@ -1214,7 +1214,7 @@ namespace DataExtractor
                     return new BinaryReader(new MemoryStream(_data, 8 + (int)liquid[x][y].OffsetAttributes, _data.Length - (8 + (int)liquid[x][y].OffsetAttributes))).Read<adt_liquid_attributes>();
                 return new adt_liquid_attributes() { Fishable = 0xFFFFFFFFFFFFFFFF, Deep = 0xFFFFFFFFFFFFFFFF };
             }
-            return default(adt_liquid_attributes);
+            return default;
         }
 
         public ushort GetLiquidType(adt_liquid_instance h)

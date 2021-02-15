@@ -27,12 +27,11 @@ namespace DataExtractor.Framework.ClientReader
 {
     public class DBReader
     {
-        private const int HeaderSize = 72;
         private const uint WDC3FmtSig = 0x33434457; // WDC3
 
         public static Dictionary<uint, T> Read<T>(uint fileDataId) where T : new()
         {
-            string fileName = FileList.DBFilesClientList.First(p => p.FileDataId == fileDataId).FileName;
+            string fileName = FileList.DBFilesClientList.LookupByKey(fileDataId);
 
             Dictionary<uint, T> storage = new Dictionary<uint, T>();
 

@@ -52,7 +52,7 @@ namespace DataExtractor.Vmap
         {
             using (BinaryReader reader = new BinaryReader(stream))
             {
-                _unload();
+                Unload();
 
                 uint m2start = 0;
                 string b;
@@ -89,7 +89,7 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        void _unload()
+        void Unload()
         {
             vertices = null;
             indices = null;

@@ -60,7 +60,7 @@ namespace DataExtractor
                 if (!Enum.TryParse(typeof(LocaleFlags), line, out object locale))
                     continue;
 
-                localeMask = localeMask | Convert.ToUInt32(locale);
+                localeMask |= Convert.ToUInt32(locale);
             }
 
             installedLocalesMask = (LocaleFlags)localeMask;
@@ -153,16 +153,16 @@ namespace DataExtractor
                 CreateDirectory(currentPath);
 
                 CascHandler.Root.SetFlags(SharedConst.WowLocaleToCascLocaleFlags[(int)locale]);
-                foreach (var db2 in FileList.DBFilesClientList)
+                foreach (var pair in FileList.DBFilesClientList)
                 {
-                    var dbcStream = CascHandler.OpenFile(db2.FileDataId);
+                    var dbcStream = CascHandler.OpenFile(pair.Key);
                     if (dbcStream == null)
                     {
-                        Console.WriteLine($"Unable to open file {db2.FileName} in the archive for locale {locale}\n");
+                        Console.WriteLine($"Unable to open file {pair.Value} in the archive for locale {locale}");
                         continue;
                     }
 
-                    FileWriter.WriteFile(dbcStream, currentPath + $"/{ db2.FileName.Replace(@"\\", "").Replace(@"DBFilesClient\", "")}");
+                    FileWriter.WriteFile(dbcStream, currentPath + $"/{ pair.Value.Replace(@"\\", "").Replace(@"DBFilesClient\", "")}");
                     count++;
                 }
             }
@@ -215,16 +215,16 @@ namespace DataExtractor
             CreateDirectory(path);
 
             uint count = 0;
-            foreach (var gt in FileList.GameTables)
+            foreach (var pair in FileList.GameTables)
             {
-                var dbcFile = CascHandler.OpenFile(gt.FileDataId);
+                var dbcFile = CascHandler.OpenFile(pair.Key);
                 if (dbcFile == null)
                 {
-                    Console.WriteLine($"Unable to open file {gt.FileName} in the archive\n");
+                    Console.WriteLine($"Unable to open file {pair.Value} in the archive\n");
                     continue;
                 }
 
-                string file = $"{path}/{gt.FileName.Replace("GameTables\\", "")}";
+                string file = $"{path}/{pair.Value.Replace("GameTables\\", "")}";
                 if (!File.Exists(file))
                 {
                     FileWriter.WriteFile(dbcFile, file);
