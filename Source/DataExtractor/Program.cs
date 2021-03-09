@@ -153,16 +153,16 @@ namespace DataExtractor
                 CreateDirectory(currentPath);
 
                 CascHandler.Root.SetFlags(SharedConst.WowLocaleToCascLocaleFlags[(int)locale]);
-                foreach (var pair in FileList.DBFilesClientList)
+                foreach (var (fileDataId, fileName) in FileList.DBFilesClientList)
                 {
-                    var dbcStream = CascHandler.OpenFile(pair.Key);
+                    var dbcStream = CascHandler.OpenFile(fileDataId);
                     if (dbcStream == null)
                     {
-                        Console.WriteLine($"Unable to open file {pair.Value} in the archive for locale {locale}");
+                        Console.WriteLine($"Unable to open file {fileName} in the archive for locale {locale}");
                         continue;
                     }
 
-                    FileWriter.WriteFile(dbcStream, currentPath + $"/{ pair.Value.Replace(@"\\", "").Replace(@"DBFilesClient\", "")}");
+                    FileWriter.WriteFile(dbcStream, currentPath + $"/{ fileName.Replace(@"\\", "").Replace(@"DBFilesClient\", "")}");
                     count++;
                 }
             }
@@ -262,6 +262,7 @@ namespace DataExtractor
                 Console.Write($"Extract {record.Directory} ({count++}/{mapStorage.Count})                  \n");
                 // Loadup map grid data
                 ChunkedFile wdt = new ChunkedFile();
+                char[] existingTiles = new char[64 * 64];
                 if (wdt.loadFile(CascHandler, record.WdtFileDataID, $"WDT for map {record.Id}"))
                 {
                     wdt_MPHD mphd = wdt.GetChunk("MPHD").As<wdt_MPHD>();
@@ -278,17 +279,25 @@ namespace DataExtractor
                             if (mphd != null && (mphd.flags & 0x200) != 0)
                             {
                                 wdt_MAID maid = wdt.GetChunk("MAID").As<wdt_MAID>();
-                                MapFile.ConvertADT(CascHandler, maid.adt_files[y][x].rootADT, record.MapName, outputFileName, y, x, ignoreDeepWater);
+                                existingTiles[y * 64 + x] = MapFile.ConvertADT(CascHandler, maid.adt_files[y][x].rootADT, record.MapName, outputFileName, y, x, ignoreDeepWater) ? '1' : '0';
                             }
                             else
                             {
                                 string storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}.adt";
-                                MapFile.ConvertADT(CascHandler, storagePath, record.MapName, outputFileName, y, x, ignoreDeepWater);
+                                existingTiles[y * 64 + x] = MapFile.ConvertADT(CascHandler, storagePath, record.MapName, outputFileName, y, x, ignoreDeepWater) ? '1' : '0';
                             }
                         }
                         // draw progress bar
                         Console.Write($"Processing........................{(100 * (y + 1)) / 64}%\r");
                     }
+                }
+
+                using (BinaryWriter binaryWriter = new BinaryWriter(File.Open($"{path}/{record.Id:D4}.tilelist", FileMode.Create, FileAccess.Write)))
+                {
+                    binaryWriter.Write(MapFile.MAP_MAGIC);
+                    binaryWriter.Write(MapFile.MAP_VERSION_MAGIC);
+                    binaryWriter.Write(_build);
+                    binaryWriter.Write(existingTiles);
                 }
             }
             Console.WriteLine("\n");

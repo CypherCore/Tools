@@ -100,7 +100,7 @@ namespace DataExtractor.Vmap
                                     }
                                     else
                                     {
-                                        string fileName = $"FILE{mapObjDef.Id}:8X.xxx";
+                                        string fileName = $"FILE{mapObjDef.Id:8X}.xxx";
                                         VmapFile.ExtractSingleWmo(fileName);
                                         WMORoot.Extract(mapObjDef, fileName, true, mapId, mapId, binaryWriter, null);
                                         Model.ExtractSet(VmapFile.WmoDoodads[fileName], mapObjDef, true, mapId, mapId, binaryWriter, null);

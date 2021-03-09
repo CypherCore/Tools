@@ -31,8 +31,8 @@ namespace DataExtractor
         public static int ADT_CELL_SIZE = 8;
         public static int ADT_GRID_SIZE = (ADT_CELLS_PER_GRID * ADT_CELL_SIZE);
 
-        const uint MAP_MAGIC = 0x5350414D; //"MAPS";
-        const uint MAP_VERSION_MAGIC = 0x392E3176; //"v1.9";
+        public const uint MAP_MAGIC = 0x5350414D; //"MAPS";
+        public const uint MAP_VERSION_MAGIC = 0x392E3176; //"v1.9";
         const uint MAP_AREA_MAGIC = 0x41455241; //"AREA";
         const uint MAP_HEIGHT_MAGIC = 0x5447484D; //"MHGT";
         const uint MAP_LIQUID_MAGIC = 0x51494C4D; //"MLIQ";

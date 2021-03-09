@@ -101,7 +101,7 @@ namespace DataExtractor.Mmap
                         count++;
                 }
 
-                // make sure we process maps which don't have tiles
+                // make sure we process maps which don't have ExtractMaps
                 if (tiles.Empty())
                 {
                     // convert coord bounds to grid bounds
@@ -459,8 +459,8 @@ namespace DataExtractor.Mmap
             config.minRegionArea = (60 * 60);
             config.mergeRegionArea = (50 * 50);
             config.maxSimplificationError = 1.8f;           // eliminates most jagged edges (tiny polygons)
-            config.detailSampleDist = config.cs * 64;
-            config.detailSampleMaxError = config.ch * 2;
+            config.detailSampleDist = config.cs * 16;
+            config.detailSampleMaxError = config.ch * 1;
 
             // this sets the dimensions of the heightfield - should maybe happen before border padding
             int width, height;
