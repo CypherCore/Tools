@@ -818,7 +818,7 @@ public static partial class Recast
         }
         public override string ToString()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine("\treg: " + reg);
             sb.AppendLine("\tarea: " + area);
             sb.AppendLine("\tnverts: " + nverts);
@@ -854,7 +854,7 @@ public static partial class Recast
 
         public override string ToString()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             sb.AppendLine("nconts: " + nconts);
             sb.AppendLine("bmin: " + bmin[0] + " " + bmin[1] + " " + bmin[2]);
@@ -898,7 +898,7 @@ public static partial class Recast
 
         public override string ToString()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             sb.AppendLine("bmin: " + bmin[0] + " " + bmin[1] + " " + bmin[2]);
             sb.AppendLine("bmax: " + bmax[0] + " " + bmax[1] + " " + bmax[2]);
@@ -950,7 +950,7 @@ public static partial class Recast
 
         public string ToObj()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             sb.AppendLine("# Recast Navmesh");
             sb.AppendLine("o NavMesh");
@@ -1003,7 +1003,7 @@ public static partial class Recast
 
         public override string ToString()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             sb.AppendLine("nmeshes: " + nmeshes);
             for (int i = 0; i < nmeshes; ++i)
@@ -1029,7 +1029,7 @@ public static partial class Recast
 
         public string ToObj()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             sb.AppendLine("# Recast C# Navmesh\n");
             sb.AppendLine("o NavMesh\n");

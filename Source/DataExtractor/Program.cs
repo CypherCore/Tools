@@ -18,6 +18,7 @@
 using DataExtractor.CASCLib;
 using DataExtractor.Framework.ClientReader;
 using DataExtractor.Framework.Constants;
+using DataExtractor.Map;
 using DataExtractor.Mmap;
 using DataExtractor.Vmap;
 using DataExtractor.Vmap.Collision;
@@ -45,6 +46,7 @@ namespace DataExtractor
             Console.WriteLine("\r");
 
             BaseDirectory = Environment.CurrentDirectory;
+            BuildingsDirectory = $"{BaseDirectory}/Buildings/";
 
             if (args.Length > 0)
                 BaseDirectory = Path.GetDirectoryName(args[0]);
@@ -162,6 +164,16 @@ namespace DataExtractor
                         continue;
                     }
 
+                    // Unused DB2 file, 0 records
+                    var reader = new BinaryReader(dbcStream);
+                    reader.ReadUInt32();
+                    var recordCount = reader.ReadUInt32();
+                    if (recordCount == 0)
+                        continue;
+
+                    reader.BaseStream.Position = 0;
+                    dbcStream.Position = 0;
+
                     FileWriter.WriteFile(dbcStream, currentPath + $"/{ fileName.Replace(@"\\", "").Replace(@"DBFilesClient\", "")}");
                     count++;
                 }
@@ -201,7 +213,7 @@ namespace DataExtractor
                     }
                 }
                 else
-                    Console.WriteLine($"Unable to open file {$"File{cameraRecord.FileDataID:X8}.xxx"} in the archive: \n");
+                    Console.WriteLine($"Unable to open file {$"FILE{cameraRecord.FileDataID:X8}.xxx"} in the archive: \n");
             }
 
             Console.WriteLine($"Extracted {count} Camera files.");
@@ -261,30 +273,30 @@ namespace DataExtractor
             {
                 Console.Write($"Extract {record.Directory} ({count++}/{mapStorage.Count})                  \n");
                 // Loadup map grid data
-                ChunkedFile wdt = new ChunkedFile();
+                ChunkedFile wdt = new();
                 char[] existingTiles = new char[64 * 64];
-                if (wdt.loadFile(CascHandler, record.WdtFileDataID, $"WDT for map {record.Id}"))
+                if (wdt.LoadFile(CascHandler, (uint)record.WdtFileDataID, $"WDT for map {record.Id}"))
                 {
-                    wdt_MPHD mphd = wdt.GetChunk("MPHD").As<wdt_MPHD>();
-                    wdt_MAIN main = wdt.GetChunk("MAIN").As<wdt_MAIN>();
+                    MPHD mphd = wdt.GetChunk("MPHD").As<MPHD>();
+                    MAIN main = wdt.GetChunk("MAIN").As<MAIN>();
                     for (int y = 0; y < 64; ++y)
                     {
                         for (int x = 0; x < 64; ++x)
                         {
-                            if (!Convert.ToBoolean(main.adt_list[y][x].flag & 0x1))
+                            if (!Convert.ToBoolean(main.MapAreaInfo[y][x].Flag & 0x1))
                                 continue;
 
                             string outputFileName = $"{path}/{record.Id:D4}_{y:D2}_{x:D2}.map";
                             bool ignoreDeepWater = MapFile.IsDeepWaterIgnored(record.Id, y, x);
-                            if (mphd != null && (mphd.flags & 0x200) != 0)
+                            if (mphd != null && (mphd.Flags & 0x200) != 0)
                             {
-                                wdt_MAID maid = wdt.GetChunk("MAID").As<wdt_MAID>();
-                                existingTiles[y * 64 + x] = MapFile.ConvertADT(CascHandler, maid.adt_files[y][x].rootADT, record.MapName, outputFileName, y, x, ignoreDeepWater) ? '1' : '0';
+                                MAID maid = wdt.GetChunk("MAID").As<MAID>();
+                                existingTiles[y * 64 + x] = Convert.ToChar(MapFile.ConvertADT(CascHandler, maid.MapFileDataIDs[y][x].RootADT, record.MapName, outputFileName, y, x, ignoreDeepWater));
                             }
                             else
                             {
                                 string storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}.adt";
-                                existingTiles[y * 64 + x] = MapFile.ConvertADT(CascHandler, storagePath, record.MapName, outputFileName, y, x, ignoreDeepWater) ? '1' : '0';
+                                existingTiles[y * 64 + x] = Convert.ToChar(MapFile.ConvertADT(CascHandler, storagePath, record.MapName, outputFileName, y, x, ignoreDeepWater));
                             }
                         }
                         // draw progress bar
@@ -292,33 +304,35 @@ namespace DataExtractor
                     }
                 }
 
-                using (BinaryWriter binaryWriter = new BinaryWriter(File.Open($"{path}/{record.Id:D4}.tilelist", FileMode.Create, FileAccess.Write)))
-                {
-                    binaryWriter.Write(MapFile.MAP_MAGIC);
-                    binaryWriter.Write(MapFile.MAP_VERSION_MAGIC);
-                    binaryWriter.Write(_build);
-                    binaryWriter.Write(existingTiles);
-                }
+                using BinaryWriter binaryWriter = new(File.Open($"{path}/{record.Id:D4}.tilelist", FileMode.Create, FileAccess.Write));
+                binaryWriter.Write(SharedConst.MAP_MAGIC);
+                binaryWriter.Write(SharedConst.MAP_VERSION_MAGIC);
+                binaryWriter.Write(_build);
+                binaryWriter.Write(existingTiles);
             }
             Console.WriteLine("\n");
         }
 
         static void ExtractVMaps()
         {
-            CreateDirectory(WmoDirectory);
-            File.Delete(WmoDirectory + "dir_bin");
+            CreateDirectory(BuildingsDirectory);
+            File.Delete(BuildingsDirectory + "dir_bin");
 
             // Extract models, listed in GameObjectDisplayInfo.dbc
             VmapFile.ExtractGameobjectModels();
 
-            VmapFile.ParsMapFiles();
+            string dirname = BuildingsDirectory + "dir_bin";
+            DirBinWriter = new(File.Open(dirname, FileMode.Append, FileAccess.Write));
+            VmapFile.ParsMapFiles(CascHandler);
+            DirBinWriter.Close();
+
             Console.WriteLine("Extracting Done!");
 
             Console.WriteLine("Converting Vmap files...");
-            CreateDirectory("./vmaps");
+            CreateDirectory($"{BaseDirectory}/vmaps");
 
-            TileAssembler ta = new TileAssembler(WmoDirectory, "vmaps");
-            if (!ta.convertWorld2())
+            TileAssembler ta = new(BuildingsDirectory, $"{BaseDirectory}/vmaps");
+            if (!ta.ConvertWorld2())
                 return;
 
             Console.WriteLine("Converting Done!");
@@ -368,7 +382,7 @@ namespace DataExtractor
                 return;
             }
 
-            MultiMap<uint, uint> mapData = new MultiMap<uint, uint>();
+            MultiMap<uint, uint> mapData = new();
             foreach (var record in mapStorage.Values)
             {
                 if (record.ParentMapID != -1)
@@ -377,7 +391,7 @@ namespace DataExtractor
 
             vm.Initialize(mapData);
 
-            MapBuilder builder = new MapBuilder(vm, debugMaps);
+            MapBuilder builder = new(vm, debugMaps);
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
             if (mapId != -1)
@@ -445,6 +459,8 @@ namespace DataExtractor
         static LocaleFlags firstInstalledLocale { get; set; }
 
         public static string BaseDirectory { get; set; }
-        public static string WmoDirectory { get; set; } = "./Buildings/";
+        public static string BuildingsDirectory { get; set; }
+
+        public static BinaryWriter DirBinWriter { get; set; }
     }
 }

@@ -22,9 +22,9 @@ namespace DataExtractor.CASCLib
 
     public class DownloadHandler
     {
-        private static readonly MD5HashComparer comparer = new MD5HashComparer();
-        private Dictionary<MD5Hash, DownloadEntry> DownloadData = new Dictionary<MD5Hash, DownloadEntry>(comparer);
-        private Dictionary<string, DownloadTag> Tags = new Dictionary<string, DownloadTag>();
+        private static readonly MD5HashComparer comparer = new();
+        private Dictionary<MD5Hash, DownloadEntry> DownloadData = new(comparer);
+        private Dictionary<string, DownloadTag> Tags = new();
 
         public int Count => DownloadData.Count;
 
@@ -57,7 +57,7 @@ namespace DataExtractor.CASCLib
 
             for (int i = 0; i < numTags; i++)
             {
-                DownloadTag tag = new DownloadTag();
+                DownloadTag tag = new();
                 string name = stream.ReadCString();
                 tag.Type = stream.ReadInt16BE();
 

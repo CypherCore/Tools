@@ -21,11 +21,9 @@ public class FileWriter
 {
     public static void WriteFile(Stream data, string path, FileMode fileMode = FileMode.Create)
     {
-        using (MemoryStream ms = new MemoryStream())
-        using (var fs = new FileStream(path, fileMode, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, true))
-        {
-            data.CopyTo(ms);
-            fs.Write(ms.ToArray(), 0, (int)data.Length);
-        }
+        using MemoryStream ms = new();
+        using var fs = new FileStream(path, fileMode, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, true);
+        data.CopyTo(ms);
+        fs.Write(ms.ToArray(), 0, (int)data.Length);
     }
 }

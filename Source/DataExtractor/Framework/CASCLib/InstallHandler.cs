@@ -24,8 +24,8 @@ namespace DataExtractor.CASCLib
 
     public class InstallHandler
     {
-        private List<InstallEntry> InstallData = new List<InstallEntry>();
-        private static readonly Jenkins96 Hasher = new Jenkins96();
+        private List<InstallEntry> InstallData = new();
+        private static readonly Jenkins96 Hasher = new();
 
         public int Count => InstallData.Count;
 
@@ -40,11 +40,11 @@ namespace DataExtractor.CASCLib
 
             int numMaskBytes = (numFiles + 7) / 8;
 
-            List<InstallTag> Tags = new List<InstallTag>();
+            List<InstallTag> Tags = new();
 
             for (int i = 0; i < numTags; i++)
             {
-                InstallTag tag = new InstallTag()
+                InstallTag tag = new()
                 {
                     Name = stream.ReadCString(),
                     Type = stream.ReadInt16BE()
@@ -61,7 +61,7 @@ namespace DataExtractor.CASCLib
 
             for (int i = 0; i < numFiles; i++)
             {
-                InstallEntry entry = new InstallEntry()
+                InstallEntry entry = new()
                 {
                     Name = stream.ReadCString(),
                     MD5 = stream.Read<MD5Hash>(),

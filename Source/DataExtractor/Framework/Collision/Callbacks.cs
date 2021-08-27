@@ -17,6 +17,7 @@
 
 using DataExtractor.Framework.GameMath;
 using System.Collections.Generic;
+using System.Numerics;
 
 namespace DataExtractor.Framework.Collision
 {
@@ -32,8 +33,8 @@ namespace DataExtractor.Framework.Collision
             Vector3 lo = vertices[(int)tri.idx0];
             Vector3 hi = lo;
 
-            lo = (lo.Min(vertices[(int)tri.idx1])).Min(vertices[(int)tri.idx2]);
-            hi = (hi.Max(vertices[(int)tri.idx1])).Max(vertices[(int)tri.idx2]);
+            lo = Vector3.Min(Vector3.Min(lo, vertices[(int)tri.idx1]), vertices[(int)tri.idx2]);
+            hi = Vector3.Max(Vector3.Max(hi, vertices[(int)tri.idx1]), vertices[(int)tri.idx2]);
 
             value = new AxisAlignedBox(lo, hi);
         }

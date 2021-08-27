@@ -1480,16 +1480,16 @@ public static partial class Recast
         int borderSize = mesh.borderSize;
         int heightSearchRadius = Math.Max(1, (int)Math.Ceiling(mesh.maxEdgeError));
 
-        List<int> edges = new List<int>();
-        List<int> tris = new List<int>();
-        List<int> stack = new List<int>();
-        List<int> samples = new List<int>();
+        List<int> edges = new();
+        List<int> tris = new();
+        List<int> stack = new();
+        List<int> samples = new();
         edges.Capacity = 64;
         tris.Capacity = 512;
         stack.Capacity = 512;
         samples.Capacity = 512;
         float[] verts = new float[256 * 3];
-        rcHeightPatch hp = new rcHeightPatch();
+        rcHeightPatch hp = new();
         int nPolyVerts = 0;
         int maxhw = 0, maxhh = 0;
 

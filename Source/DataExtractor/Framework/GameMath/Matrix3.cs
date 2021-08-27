@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
@@ -101,7 +102,8 @@ namespace DataExtractor.Framework.GameMath
             // Implementation from Watt and Watt, pg 362
             // See also http://www.flipcode.com/documents/matrfaq.html#Q54
             Quaternion q = _q;
-            q.unitize();
+            q *= 1.0f / (float)Math.Sqrt((float)((q.X * q.X) + (q.Y * q.Y) + (q.Z * q.Z) + (q.W * q.W)));
+
             float xx = 2.0f * q.X * q.X;
             float xy = 2.0f * q.X * q.Y;
             float xz = 2.0f * q.X * q.Z;
@@ -132,11 +134,11 @@ namespace DataExtractor.Framework.GameMath
         /// <summary>
         /// 4-dimentional single-precision floating point zero matrix.
         /// </summary>
-        public static readonly Matrix3 Zero = new Matrix3(0, 0, 0, 0, 0, 0, 0, 0, 0);
+        public static readonly Matrix3 Zero = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
         /// <summary>
         /// 4-dimentional single-precision floating point identity matrix.
         /// </summary>
-        public static readonly Matrix3 Identity = new Matrix3(1, 0, 0, 0, 1, 0, 0, 0, 1);
+        public static readonly Matrix3 Identity = new(1, 0, 0, 0, 1, 0, 0, 0, 1);
         #endregion
 
         #region Public Properties
@@ -271,7 +273,7 @@ namespace DataExtractor.Framework.GameMath
         /// </remarks>
         public static Matrix3 Parse(string value)
         {
-            Regex r = new Regex(regularExp, RegexOptions.Singleline | RegexOptions.IgnorePatternWhitespace);
+            Regex r = new(regularExp, RegexOptions.Singleline | RegexOptions.IgnorePatternWhitespace);
             Match m = r.Match(value);
             if (m.Success)
             {
@@ -310,7 +312,7 @@ namespace DataExtractor.Framework.GameMath
         /// </remarks>
         public static bool TryParse(string value, out Matrix3 result)
         {
-            Regex r = new Regex(regularExp, RegexOptions.Singleline);
+            Regex r = new(regularExp, RegexOptions.Singleline);
             Match m = r.Match(value);
             if (m.Success)
             {
@@ -549,7 +551,7 @@ namespace DataExtractor.Framework.GameMath
         /// <returns>A new <see cref="Matrix3"/> instance containing the transposed matrix.</returns>
         public static Matrix3 Transpose(Matrix3 m)
         {
-            Matrix3 t = new Matrix3(m);
+            Matrix3 t = new(m);
             t.Transpose();
             return t;
         }
@@ -560,15 +562,15 @@ namespace DataExtractor.Framework.GameMath
 
             fCos = MathF.Cos(fYAngle);
             fSin = MathF.Sin(fYAngle);
-            Matrix3 kZMat = new Matrix3(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
+            Matrix3 kZMat = new(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
 
             fCos = MathF.Cos(fPAngle);
             fSin = MathF.Sin(fPAngle);
-            Matrix3 kYMat = new Matrix3(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
+            Matrix3 kYMat = new(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
 
             fCos = MathF.Cos(fRAngle);
             fSin = MathF.Sin(fRAngle);
-            Matrix3 kXMat = new Matrix3(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
+            Matrix3 kXMat = new(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
 
             return (kZMat * (kYMat * kXMat));
         }
@@ -580,15 +582,15 @@ namespace DataExtractor.Framework.GameMath
 
             fCos = MathF.Cos(fYAngle);
             fSin = MathF.Sin(fYAngle);
-            Matrix3 kXMat = new Matrix3(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
+            Matrix3 kXMat = new(1.0f, 0.0f, 0.0f, 0.0f, fCos, -fSin, 0.0f, fSin, fCos);
 
             fCos = MathF.Cos(fPAngle);
             fSin = MathF.Sin(fPAngle);
-            Matrix3 kYMat = new Matrix3(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
+            Matrix3 kYMat = new(fCos, 0.0f, fSin, 0.0f, 1.0f, 0.0f, -fSin, 0.0f, fCos);
 
             fCos = MathF.Cos(fRAngle);
             fSin = MathF.Sin(fRAngle);
-            Matrix3 kZMat = new Matrix3(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
+            Matrix3 kZMat = new(fCos, -fSin, 0.0f, fSin, fCos, 0.0f, 0.0f, 0.0f, 1.0f);
 
             return kXMat * (kYMat * kZMat);
         }

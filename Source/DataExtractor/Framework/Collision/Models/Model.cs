@@ -19,6 +19,7 @@ using DataExtractor.Framework.Constants;
 using DataExtractor.Framework.GameMath;
 using System;
 using System.IO;
+using System.Numerics;
 
 namespace DataExtractor.Framework.Collision
 {

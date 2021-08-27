@@ -16,7 +16,7 @@ namespace DataExtractor.CASCLib
 
     public class VerBarConfig
     {
-        private readonly List<Dictionary<string, string>> Data = new List<Dictionary<string, string>>();
+        private readonly List<Dictionary<string, string>> Data = new();
 
         public int Count => Data.Count;
 
@@ -24,8 +24,8 @@ namespace DataExtractor.CASCLib
 
         public static VerBarConfig ReadVerBarConfig(Stream stream)
         {
-            using (var sr = new StreamReader(stream))
-                return ReadVerBarConfig(sr);
+            using var sr = new StreamReader(stream);
+            return ReadVerBarConfig(sr);
         }
 
         public static VerBarConfig ReadVerBarConfig(TextReader reader)
@@ -73,7 +73,7 @@ namespace DataExtractor.CASCLib
 
     public class KeyValueConfig
     {
-        private readonly Dictionary<string, List<string>> Data = new Dictionary<string, List<string>>();
+        private readonly Dictionary<string, List<string>> Data = new();
 
         public List<string> this[string key]
         {
@@ -138,12 +138,14 @@ namespace DataExtractor.CASCLib
         {
             var config = new CASCConfig { OnlineMode = true, Region = region, Product = product };
 
-            using (var cdnsStream = CDNIndexHandler.OpenFileDirect(string.Format("http://us.patch.battle.net:1119/{0}/cdns", product)))
+            using (var ribbit = new RibbitClient("us"))
+            using (var cdnsStream = ribbit.GetAsStream($"v1/products/{product}/cdns"))
             {
                 config._CDNData = VerBarConfig.ReadVerBarConfig(cdnsStream);
             }
 
-            using (var versionsStream = CDNIndexHandler.OpenFileDirect(string.Format("http://us.patch.battle.net:1119/{0}/versions", product)))
+            using (var ribbit = new RibbitClient("us"))
+            using (var versionsStream = ribbit.GetAsStream($"v1/products/{product}/versions"))
             {
                 config._VersionsData = VerBarConfig.ReadVerBarConfig(versionsStream);
             }
@@ -163,19 +165,15 @@ namespace DataExtractor.CASCLib
 
             if (File.Exists("fakecdnconfig"))
             {
-                using (Stream stream = new FileStream("fakecdnconfig", FileMode.Open))
-                {
-                    config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
-                }
+                using Stream stream = new FileStream("fakecdnconfig", FileMode.Open);
+                config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
             }
             else
             {
                 string cdnKey = config._VersionsData[config._versionsIndex]["CDNConfig"].ToLower();
                 //string cdnKey = "da4896ce91922122bc0a2371ee114423";
-                using (Stream stream = CDNIndexHandler.OpenConfigFileDirect(config, cdnKey))
-                {
-                    config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
-                }
+                using Stream stream = CDNIndexHandler.OpenConfigFileDirect(config, cdnKey);
+                config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
             }
 
             config.ActiveBuild = 0;
@@ -188,11 +186,9 @@ namespace DataExtractor.CASCLib
                 {
                     try
                     {
-                        using (Stream stream = CDNIndexHandler.OpenConfigFileDirect(config, config._CDNConfig["builds"][i]))
-                        {
-                            var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
-                            config._Builds.Add(cfg);
-                        }
+                        using Stream stream = CDNIndexHandler.OpenConfigFileDirect(config, config._CDNConfig["builds"][i]);
+                        var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
+                        config._Builds.Add(cfg);
                     }
                     catch
                     {
@@ -213,21 +209,17 @@ namespace DataExtractor.CASCLib
 
             if (File.Exists("fakebuildconfig"))
             {
-                using (Stream stream = new FileStream("fakebuildconfig", FileMode.Open))
-                {
-                    var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
-                    config._Builds.Add(cfg);
-                }
+                using Stream stream = new FileStream("fakebuildconfig", FileMode.Open);
+                var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
+                config._Builds.Add(cfg);
             }
             else
             {
                 string buildKey = config._VersionsData[config._versionsIndex]["BuildConfig"].ToLower();
                 //string buildKey = "3b0517b51edbe0b96f6ac5ea7eaaed38";
-                using (Stream stream = CDNIndexHandler.OpenConfigFileDirect(config, buildKey))
-                {
-                    var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
-                    config._Builds.Add(cfg);
-                }
+                using Stream stream = CDNIndexHandler.OpenConfigFileDirect(config, buildKey);
+                var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
+                config._Builds.Add(cfg);
             }
 
             return config;
@@ -262,39 +254,31 @@ namespace DataExtractor.CASCLib
 
             if (File.Exists("fakebuildconfig"))
             {
-                using (Stream stream = new FileStream("fakebuildconfig", FileMode.Open))
-                {
-                    var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
-                    config._Builds.Add(cfg);
-                }
+                using Stream stream = new FileStream("fakebuildconfig", FileMode.Open);
+                var cfg = KeyValueConfig.ReadKeyValueConfig(stream);
+                config._Builds.Add(cfg);
             }
             else
             {
                 string buildKey = bi["BuildKey"];
                 //string buildKey = "5a05c58e28d0b2c3245954b6f4e2ae66";
                 string buildCfgPath = Path.Combine(basePath, dataFolder, "config", buildKey.Substring(0, 2), buildKey.Substring(2, 2), buildKey);
-                using (Stream stream = new FileStream(buildCfgPath, FileMode.Open))
-                {
-                    config._Builds.Add(KeyValueConfig.ReadKeyValueConfig(stream));
-                }
+                using Stream stream = new FileStream(buildCfgPath, FileMode.Open);
+                config._Builds.Add(KeyValueConfig.ReadKeyValueConfig(stream));
             }
 
             if (File.Exists("fakecdnconfig"))
             {
-                using (Stream stream = new FileStream("fakecdnconfig", FileMode.Open))
-                {
-                    config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
-                }
+                using Stream stream = new FileStream("fakecdnconfig", FileMode.Open);
+                config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
             }
             else
             {
                 string cdnKey = bi["CDNKey"];
                 //string cdnKey = "23d301e8633baaa063189ca9442b3088";
                 string cdnCfgPath = Path.Combine(basePath, dataFolder, "config", cdnKey.Substring(0, 2), cdnKey.Substring(2, 2), cdnKey);
-                using (Stream stream = new FileStream(cdnCfgPath, FileMode.Open))
-                {
-                    config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
-                }
+                using Stream stream = new FileStream(cdnCfgPath, FileMode.Open);
+                config._CDNConfig = KeyValueConfig.ReadKeyValueConfig(stream);
             }
 
             CDNCache.Init(config);

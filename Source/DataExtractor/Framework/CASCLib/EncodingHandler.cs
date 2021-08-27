@@ -12,8 +12,8 @@ namespace DataExtractor.CASCLib
 
     public class EncodingHandler
     {
-        private static readonly MD5HashComparer comparer = new MD5HashComparer();
-        private Dictionary<MD5Hash, EncodingEntry> EncodingData = new Dictionary<MD5Hash, EncodingEntry>(comparer);
+        private static readonly MD5HashComparer comparer = new();
+        private Dictionary<MD5Hash, EncodingEntry> EncodingData = new(comparer);
 
         private const int CHUNK_SIZE = 4096;
 
@@ -56,7 +56,7 @@ namespace DataExtractor.CASCLib
                     long fileSize = stream.ReadInt40BE();
                     MD5Hash cKey = stream.Read<MD5Hash>();
 
-                    EncodingEntry entry = new EncodingEntry()
+                    EncodingEntry entry = new()
                     {
                         Size = fileSize
                     };

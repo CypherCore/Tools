@@ -10,9 +10,9 @@ namespace DataExtractor.CASCLib
         protected LocalIndexHandler LocalIndex;
         protected CDNIndexHandler CDNIndex;
 
-        protected static readonly Jenkins96 Hasher = new Jenkins96();
+        protected static readonly Jenkins96 Hasher = new();
 
-        protected readonly Dictionary<int, Stream> DataStreams = new Dictionary<int, Stream>();
+        protected readonly Dictionary<int, Stream> DataStreams = new();
 
         public CASCConfig Config { get; protected set; }
 
@@ -100,27 +100,25 @@ namespace DataExtractor.CASCLib
             Stream dataStream = GetDataStream(idxInfo.Index);
             dataStream.Position = idxInfo.Offset;
 
-            using (BinaryReader reader = new BinaryReader(dataStream, Encoding.ASCII, true))
-            {
-                byte[] md5 = reader.ReadBytes(16);
-                Array.Reverse(md5);
+            using BinaryReader reader = new(dataStream, Encoding.ASCII, true);
+            byte[] md5 = reader.ReadBytes(16);
+            Array.Reverse(md5);
 
-                if (!key.EqualsTo9(md5))
-                    throw new Exception("local data corrupted");
+            if (!key.EqualsTo9(md5))
+                throw new Exception("local data corrupted");
 
-                int size = reader.ReadInt32();
+            int size = reader.ReadInt32();
 
-                if (size != idxInfo.Size)
-                    throw new Exception("local data corrupted");
+            if (size != idxInfo.Size)
+                throw new Exception("local data corrupted");
 
-                //byte[] unkData1 = reader.ReadBytes(2);
-                //byte[] unkData2 = reader.ReadBytes(8);
-                dataStream.Position += 10;
+            //byte[] unkData1 = reader.ReadBytes(2);
+            //byte[] unkData2 = reader.ReadBytes(8);
+            dataStream.Position += 10;
 
-                byte[] data = reader.ReadBytes(idxInfo.Size - 30);
+            byte[] data = reader.ReadBytes(idxInfo.Size - 30);
 
-                return new MemoryStream(data);
-            }
+            return new MemoryStream(data);
         }
 
         protected abstract void ExtractFileOnline(MD5Hash key, string path, string name);
@@ -129,19 +127,15 @@ namespace DataExtractor.CASCLib
         {
             if (idxInfo != null)
             {
-                using (Stream s = CDNIndex.OpenDataFile(idxInfo))
-                using (BLTEStream blte = new BLTEStream(s, key))
-                {
-                    blte.ExtractToFile(path, name);
-                }
+                using Stream s = CDNIndex.OpenDataFile(idxInfo);
+                using BLTEStream blte = new(s, key);
+                blte.ExtractToFile(path, name);
             }
             else
             {
-                using (Stream s = CDNIndex.OpenDataFileDirect(key))
-                using (BLTEStream blte = new BLTEStream(s, key))
-                {
-                    blte.ExtractToFile(path, name);
-                }
+                using Stream s = CDNIndex.OpenDataFileDirect(key);
+                using BLTEStream blte = new(s, key);
+                blte.ExtractToFile(path, name);
             }
         }
 

@@ -23,8 +23,8 @@ namespace DataExtractor.CASCLib
 
             if ((CASCConfig.LoadFlags & LoadFlags.Download) != 0)
             {
-                using (var fs = OpenDownloadFile(EncodingHandler, this))
-                    DownloadHandler = new DownloadHandler(fs);
+                using var fs = OpenDownloadFile(EncodingHandler, this);
+                DownloadHandler = new DownloadHandler(fs);
             }
 
             KeyService.LoadKeys();
@@ -34,8 +34,8 @@ namespace DataExtractor.CASCLib
 
             if ((CASCConfig.LoadFlags & LoadFlags.Install) != 0)
             {
-                using (var fs = OpenInstallFile(EncodingHandler, this))
-                    InstallHandler = new InstallHandler(fs);
+                using var fs = OpenInstallFile(EncodingHandler, this);
+                InstallHandler = new InstallHandler(fs);
             }
         }
 

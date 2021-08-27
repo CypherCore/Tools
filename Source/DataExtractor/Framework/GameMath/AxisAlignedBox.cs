@@ -16,8 +16,8 @@
  */
 
 using System;
+using System.Numerics;
 using System.Runtime.Serialization;
-using System.Security.Permissions;
 
 namespace DataExtractor.Framework.GameMath
 {
@@ -239,8 +239,8 @@ namespace DataExtractor.Framework.GameMath
             }
             else if (!a.isEmpty())
             {
-                _lo = Lo.Min(a.Lo);
-                _hi = Hi.Max(a.Hi);
+                _lo = Vector3.Min(Lo, a.Lo);
+                _hi = Vector3.Max(Hi, a.Hi);
             }
         }
 
@@ -252,19 +252,19 @@ namespace DataExtractor.Framework.GameMath
             }
             else
             {
-                _lo = _lo.Min(a);
-                _hi = _hi.Max(a);
+                _lo = Vector3.Min(_lo, a);
+                _hi = Vector3.Max(_hi, a);
             }
         }
 
-        public static readonly AxisAlignedBox Zero = new AxisAlignedBox(Vector3.Zero, Vector3.Zero);
+        public static readonly AxisAlignedBox Zero = new(Vector3.Zero, Vector3.Zero);
 
-        public static readonly AxisAlignedBox NaN = new AxisAlignedBox(Vector3.NaN, Vector3.NaN);
+        public static readonly AxisAlignedBox NaN = new(new Vector3(float.NaN, float.NaN, float.NaN), new Vector3(float.NaN, float.NaN, float.NaN));
 
         public Vector3 corner(int index)
         {
             // default constructor inits all components to 0
-            Vector3 v = new Vector3();
+            Vector3 v = new();
 
             switch (index)
             {
@@ -325,7 +325,7 @@ namespace DataExtractor.Framework.GameMath
 
         public static AxisAlignedBox operator +(AxisAlignedBox box, Vector3 v)
         {
-            AxisAlignedBox outt = new AxisAlignedBox();
+            AxisAlignedBox outt = new();
             outt.Lo = box.Lo + v;
             outt.Hi = box.Hi + v;
             return outt;
@@ -333,7 +333,7 @@ namespace DataExtractor.Framework.GameMath
 
         public bool isFinite()
         {
-            var b = isEmpty() || (Lo.isFinite() && Hi.isFinite());
+            var b = isEmpty() || (Lo.isNaN() && Hi.isFinite());
             return b;
         }
 

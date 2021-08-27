@@ -31,7 +31,7 @@ namespace DataExtractor.Framework.ClientReader
         public uint Id;
         public float[] GeoBox = new float[6];
         public uint FileDataID;
-        public ushort ObjectEffectPackageID;
+        public short ObjectEffectPackageID;
         public float OverrideLootEffectScale;
         public float OverrideNameScale;
     }
@@ -39,8 +39,8 @@ namespace DataExtractor.Framework.ClientReader
     public sealed class LiquidMaterialRecord
     {
         public uint Id;
-        public sbyte LVF;
         public sbyte Flags;
+        public sbyte LVF;
     }
 
     public sealed class LiquidObjectRecord
@@ -84,14 +84,13 @@ namespace DataExtractor.Framework.ClientReader
         public uint Id;
         public string Directory;
         public string MapName;
-        public string InternalName;
         public string MapDescription0;                               // Horde
         public string MapDescription1;                               // Alliance
         public string PvpShortDescription;
         public string PvpLongDescription;
         public float[] Corpse = new float[2];                                           // entrance coordinates in ghost mode  (in most cases = normal entrance)
         public byte MapType;
-        public byte InstanceType;
+        public sbyte InstanceType;
         public byte ExpansionID;
         public ushort AreaTableID;
         public short LoadingScreenID;
@@ -103,8 +102,8 @@ namespace DataExtractor.Framework.ClientReader
         public short CorpseMapID;                                              // map_id of entrance map in ghost mode (continent always and in most cases = normal entrance)
         public byte MaxPlayers;
         public short WindSettingsID;
-        public uint ZmpFileDataID;
-        public uint WdtFileDataID;
-        public uint[] Flags = new uint[2];
+        public int ZmpFileDataID;
+        public int WdtFileDataID;
+        public int[] Flags = new int[2];
     }
 }

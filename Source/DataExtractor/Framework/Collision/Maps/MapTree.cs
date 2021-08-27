@@ -45,7 +45,7 @@ namespace DataExtractor.Framework.Collision
             if (!File.Exists(fullname))
                 return false;
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(fullname, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            using (BinaryReader binaryReader = new(File.Open(fullname, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 if (binaryReader.ReadStringFromChars(8) == SharedConst.VMAP_MAGIC)
                 {
@@ -87,46 +87,43 @@ namespace DataExtractor.Framework.Collision
             string tilefile = _basePath + GetTileFileName(_mapId, tileX, tileY);
             if (File.Exists(tilefile))
             {
-                using (BinaryReader binaryReader = new BinaryReader(File.Open(tilefile, FileMode.Open, FileAccess.Read, FileShare.Read)))
+                using BinaryReader binaryReader = new(File.Open(tilefile, FileMode.Open, FileAccess.Read, FileShare.Read));
+                if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
+                    return false;
+
+                uint numSpawns = binaryReader.ReadUInt32();
+                for (uint i = 0; i < numSpawns; ++i)
                 {
-                    if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
-                        return false;
-
-                    uint numSpawns = binaryReader.ReadUInt32();
-                    for (uint i = 0; i < numSpawns; ++i)
+                    // read model spawns
+                    var result = ModelSpawn.ReadFromFile(binaryReader, out ModelSpawn spawn);
+                    if (result)
                     {
-                        // read model spawns
-                        ModelSpawn spawn;
-                        var result = ModelSpawn.ReadFromFile(binaryReader, out spawn);
-                        if (result)
+                        // acquire model instance
+                        WorldModel model = vm.AcquireModelInstance(_basePath, spawn.name);
+                        if (model == null)
+                            Console.WriteLine($"StaticMapTree.LoadMapTile() : could not acquire WorldModel pointer [{tileX}, {tileY}]");
+
+                        // update tree
+                        if (_spawnIndices.ContainsKey(spawn.ID))
                         {
-                            // acquire model instance
-                            WorldModel model = vm.AcquireModelInstance(_basePath, spawn.name);
-                            if (model == null)
-                                Console.WriteLine($"StaticMapTree.LoadMapTile() : could not acquire WorldModel pointer [{tileX}, {tileY}]");
-
-                            // update tree
-                            if (_spawnIndices.ContainsKey(spawn.ID))
+                            uint referencedVal = _spawnIndices[spawn.ID];
+                            if (!_loadedSpawns.ContainsKey(referencedVal))
                             {
-                                uint referencedVal = _spawnIndices[spawn.ID];
-                                if (!_loadedSpawns.ContainsKey(referencedVal))
+                                if (referencedVal > _nTreeValues)
                                 {
-                                    if (referencedVal > _nTreeValues)
-                                    {
-                                        Console.WriteLine($"StaticMapTree.LoadMapTile() : invalid tree element ({referencedVal}/{_nTreeValues}) referenced in tile {tilefile}");
-                                        continue;
-                                    }
-
-                                    _treeValues[referencedVal] = new ModelInstance(spawn, model);
-                                    _loadedSpawns[referencedVal] = 1;
+                                    Console.WriteLine($"StaticMapTree.LoadMapTile() : invalid tree element ({referencedVal}/{_nTreeValues}) referenced in tile {tilefile}");
+                                    continue;
                                 }
-                                else
-                                    ++_loadedSpawns[referencedVal];
+
+                                _treeValues[referencedVal] = new ModelInstance(spawn, model);
+                                _loadedSpawns[referencedVal] = 1;
                             }
+                            else
+                                ++_loadedSpawns[referencedVal];
                         }
                     }
-                    _loadedTiles[PackTileID(tileX, tileY)] = true;
                 }
+                _loadedTiles[PackTileID(tileX, tileY)] = true;
             }
             else
                 _loadedTiles[PackTileID(tileX, tileY)] = false;
@@ -150,36 +147,33 @@ namespace DataExtractor.Framework.Collision
                 string tilefile = _basePath + GetTileFileName(_mapId, tileX, tileY);
                 if (File.Exists(tilefile))
                 {
-                    using (BinaryReader binaryReader = new BinaryReader(File.Open(tilefile, FileMode.Open, FileAccess.Read, FileShare.Read)))
+                    using BinaryReader binaryReader = new(File.Open(tilefile, FileMode.Open, FileAccess.Read, FileShare.Read));
+                    bool result = true;
+                    if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
+                        result = false;
+
+                    uint numSpawns = binaryReader.ReadUInt32();
+                    for (uint i = 0; i < numSpawns && result; ++i)
                     {
-                        bool result = true;
-                        if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
-                            result = false;
-
-                        uint numSpawns = binaryReader.ReadUInt32();
-                        for (uint i = 0; i < numSpawns && result; ++i)
+                        // read model spawns
+                        result = ModelSpawn.ReadFromFile(binaryReader, out ModelSpawn spawn);
+                        if (result)
                         {
-                            // read model spawns
-                            ModelSpawn spawn;
-                            result = ModelSpawn.ReadFromFile(binaryReader, out spawn);
-                            if (result)
-                            {
-                                // release model instance
-                                vm.ReleaseModelInstance(spawn.name);
+                            // release model instance
+                            vm.ReleaseModelInstance(spawn.name);
 
-                                // update tree
-                                if (!_spawnIndices.ContainsKey(spawn.ID))
-                                    result = false;
-                                else
+                            // update tree
+                            if (!_spawnIndices.ContainsKey(spawn.ID))
+                                result = false;
+                            else
+                            {
+                                uint referencedVal = _spawnIndices[spawn.ID];
+                                if (!_loadedSpawns.ContainsKey(referencedVal))
+                                    Console.WriteLine($"StaticMapTree.UnloadMapTile() : trying to unload non-referenced model '{spawn.name}' (ID:{spawn.ID})");
+                                else if (--_loadedSpawns[referencedVal] == 0)
                                 {
-                                    uint referencedVal = _spawnIndices[spawn.ID];
-                                    if (!_loadedSpawns.ContainsKey(referencedVal))
-                                        Console.WriteLine($"StaticMapTree.UnloadMapTile() : trying to unload non-referenced model '{spawn.name}' (ID:{spawn.ID})");
-                                    else if (--_loadedSpawns[referencedVal] == 0)
-                                    {
-                                        _treeValues[referencedVal].SetUnloaded();
-                                        _loadedSpawns.Remove(referencedVal);
-                                    }
+                                    _treeValues[referencedVal].SetUnloaded();
+                                    _loadedSpawns.Remove(referencedVal);
                                 }
                             }
                         }
@@ -202,18 +196,18 @@ namespace DataExtractor.Framework.Collision
         public static void UnpackTileID(uint ID, out uint tileX, out uint tileY) { tileX = ID >> 16; tileY = ID & 0xFF; }
 
         uint _mapId;
-        BIH _tree = new BIH();
+        BIH _tree = new();
         ModelInstance[] _treeValues; // the tree entries
         uint _nTreeValues;
 
-        Dictionary<uint, uint> _spawnIndices = new Dictionary<uint, uint>();
+        Dictionary<uint, uint> _spawnIndices = new();
 
         // Store all the map tile idents that are loaded for that map
         // some maps are not splitted into tiles and we have to make sure, not removing the map before all tiles are removed
         // empty tiles have no tile file, hence map with bool instead of just a set (consistency check)
-        Dictionary<uint, bool> _loadedTiles = new Dictionary<uint, bool>();
+        Dictionary<uint, bool> _loadedTiles = new();
         // stores <tree_index, reference_count> to invalidate tree values, unload map, and to be able to report errors
-        Dictionary<uint, uint> _loadedSpawns = new Dictionary<uint, uint>();
+        Dictionary<uint, uint> _loadedSpawns = new();
         string _basePath;
     }
 }

@@ -17,7 +17,8 @@ namespace DataExtractor.CASCLib
         Client,
         S1,
         WC3,
-        Destiny2
+        Destiny2,
+        D2R
     }
 
     public class CASCGame
@@ -26,7 +27,7 @@ namespace DataExtractor.CASCLib
         {
             if (Directory.Exists(Path.Combine(path, "Data")))
             {
-                string[] wowWinBins = new string[] { "Wow.exe", "WowT.exe", "WowB.exe", "WowClassic.exe", "WowClassicT.exe" };
+                string[] wowWinBins = new string[] { "Wow.exe", "WowT.exe", "WowB.exe", "WowClassic.exe", "WowClassicT.exe", "WowClassicB.exe" };
 
                 for (int i = 0; i < wowWinBins.Length; i++)
                 {
@@ -42,7 +43,7 @@ namespace DataExtractor.CASCLib
                         return CASCGameType.WoW;
                 }
 
-                string[] subFolders = new string[] { "_retail_", "_ptr_", "_beta_", "_alpha_", "_event1_", "_classic_", "_classic_beta_", "_classic_ptr_" };
+                string[] subFolders = new string[] { "_retail_", "_ptr_", "_beta_", "_alpha_", "_event1_", "_classic_", "_classic_beta_", "_classic_ptr_", "_classic_era_", "_classic_era_beta_", "_classic_era_ptr_" };
 
                 foreach (var subFolder in subFolders)
                 {
@@ -73,7 +74,7 @@ namespace DataExtractor.CASCLib
 
         public static string GetDataFolder(CASCGameType gameType)
         {
-            if (gameType == CASCGameType.WoW || gameType == CASCGameType.D3 || gameType == CASCGameType.WC3)
+            if (gameType == CASCGameType.WoW)
                 return "Data";
 
             throw new Exception("GetDataFolder called with unsupported gameType");

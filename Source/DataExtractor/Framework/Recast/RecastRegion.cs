@@ -520,8 +520,8 @@ public static partial class Recast
         public byte areaType = 0;           // Area type.
         public bool remap = false;
         public bool visited = false;
-        public List<int> connections = new List<int>();
-        public List<int> floors = new List<int>();
+        public List<int> connections = new();
+        public List<int> floors = new();
     };
 
     static void removeAdjacentNeighbours(rcRegion reg)
@@ -598,7 +598,7 @@ public static partial class Recast
         ushort bid = regb.id;
 
         // Duplicate current neighbourhood.
-        List<int> acon = new List<int>();
+        List<int> acon = new();
 
         for (int i = 0; i < rega.connections.Count; ++i)
             acon.Add(rega.connections[i]);
@@ -842,8 +842,8 @@ public static partial class Recast
         }
 
         // Remove too small regions.
-        List<int> stack = new List<int>();//(32);
-        List<int> trace = new List<int>();//(32);
+        List<int> stack = new();//(32);
+        List<int> trace = new();//(32);
         stack.Capacity = 32;
         trace.Capacity = 32;
         for (int i = 0; i < nreg; ++i)
@@ -1168,7 +1168,7 @@ public static partial class Recast
             chf.borderSize = borderSize;
         }
 
-        List<int> prev = new List<int>();//256
+        List<int> prev = new();//256
         prev.Capacity = 256;
         // Sweep one line at a time.
         for (int y = borderSize; y < h - borderSize; ++y)
@@ -1320,8 +1320,8 @@ public static partial class Recast
             //rccsResizeList(lvlStacks[i], 1024);
         }
 
-        List<int> stack = new List<int>(1024);
-        List<int> visited = new List<int>(1024);
+        List<int> stack = new(1024);
+        List<int> visited = new(1024);
         //rccResizeList(stack, 1024);
         //rccResizeList(visited, 1024);
 

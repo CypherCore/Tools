@@ -5,7 +5,7 @@ namespace DataExtractor.CASCLib
 {
     public abstract class RootHandlerBase
     {
-        protected readonly Jenkins96 Hasher = new Jenkins96();
+        protected readonly Jenkins96 Hasher = new();
         protected CASCFolder Root;
 
         public virtual int Count { get; protected set; }

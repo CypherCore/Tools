@@ -5,8 +5,8 @@ namespace DataExtractor
 {
     public class ProducerConsumerQueue<T>
     {
-        object _queueLock = new object();
-        Queue<T> _queue = new Queue<T>();
+        object _queueLock = new();
+        Queue<T> _queue = new();
         volatile bool _shutdown;
 
         public ProducerConsumerQueue()

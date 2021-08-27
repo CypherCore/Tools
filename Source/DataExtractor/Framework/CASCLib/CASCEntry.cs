@@ -143,6 +143,6 @@ namespace DataExtractor.CASCLib
             return result;
         }
 
-        public static readonly Dictionary<ulong, CASCFile> Files = new Dictionary<ulong, CASCFile>();
+        public static readonly Dictionary<ulong, CASCFile> Files = new();
     }
 }

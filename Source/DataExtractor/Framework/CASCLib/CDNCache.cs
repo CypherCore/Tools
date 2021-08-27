@@ -28,7 +28,7 @@ namespace DataExtractor.CASCLib
 
         private readonly MD5 _md5 = MD5.Create();
 
-        private readonly Dictionary<string, Stream> _dataStreams = new Dictionary<string, Stream>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Stream> _dataStreams = new(StringComparer.OrdinalIgnoreCase);
 
         private readonly Dictionary<string, CacheMetaData> _metaData;
 
@@ -78,7 +78,7 @@ namespace DataExtractor.CASCLib
             Stream stream = GetDataStream(file, cdnPath);
 
             if (stream != null)
-                numFilesOpened++;
+                CDNCacheStats.numFilesOpened++;
 
             return stream;
         }
@@ -90,13 +90,10 @@ namespace DataExtractor.CASCLib
             if (_dataStreams.TryGetValue(fileName, out Stream stream))
                 return stream;
 
-            FileInfo fi = new FileInfo(file);
+            FileInfo fi = new(file);
 
-            if (!fi.Exists)
-            {
-                if (!DownloadFile(cdnPath, file))
-                    return null;
-            }
+            if (!fi.Exists && !DownloadFile(cdnPath, file))
+                return null;
 
             stream = fi.Open(FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
@@ -106,7 +103,7 @@ namespace DataExtractor.CASCLib
                     meta = GetMetaData(cdnPath, fileName);
 
                 if (meta == null)
-                    throw new Exception(string.Format("unable to validate file {0}", file));
+                    throw new InvalidDataException(string.Format("unable to validate file {0}", file));
 
                 bool sizeOk, md5Ok;
 
@@ -147,7 +144,7 @@ namespace DataExtractor.CASCLib
 
             }
 
-            CacheMetaData meta = new CacheMetaData(resp.ContentLength, md5);
+            CacheMetaData meta = new(resp.ContentLength, md5);
             _metaData[fileName] = meta;
 
             using (var sw = File.AppendText(Path.Combine(CachePath, "cache.meta")))
@@ -172,18 +169,12 @@ namespace DataExtractor.CASCLib
 
             File.Delete(Path.Combine(CachePath, file));
 
-            using (var sw = File.AppendText(Path.Combine(CachePath, "cache.meta")))
+            using var sw = File.AppendText(Path.Combine(CachePath, "cache.meta"));
+            foreach (var meta in _metaData)
             {
-                foreach (var meta in _metaData)
-                {
-                    sw.WriteLine($"{meta.Key} {meta.Value.Size} {meta.Value.MD5}");
-                }
+                sw.WriteLine($"{meta.Key} {meta.Value.Size} {meta.Value.MD5}");
             }
         }
-
-        public static TimeSpan timeSpentDownloading = TimeSpan.Zero;
-        public static int numFilesOpened = 0;
-        public static int numFilesDownloaded = 0;
 
         private bool DownloadFile(string cdnPath, string path, int numRetries = 0)
         {
@@ -215,6 +206,8 @@ namespace DataExtractor.CASCLib
             //    return false;
 
             HttpWebRequest req = WebRequest.CreateHttp(url);
+            req.ReadWriteTimeout = 15000;
+
             //req.AddRange(0, fileSize - 1);
 
             HttpWebResponse resp;
@@ -233,17 +226,15 @@ namespace DataExtractor.CASCLib
             {
                 resp = (HttpWebResponse)exc.Response;
 
-                if (exc.Status == WebExceptionStatus.ProtocolError && resp.StatusCode == (HttpStatusCode)429)
-                {
+                if (exc.Status == WebExceptionStatus.ProtocolError && (resp.StatusCode == HttpStatusCode.NotFound || resp.StatusCode == (HttpStatusCode)429))
                     return DownloadFile(cdnPath, path, numRetries + 1);
-                }
                 else
                     return false;
             }
 
             TimeSpan timeSpent = DateTime.Now - startTime;
-            timeSpentDownloading += timeSpent;
-            numFilesDownloaded++;
+            CDNCacheStats.timeSpentDownloading += timeSpent;
+            CDNCacheStats.numFilesDownloaded++;
 
             return true;
         }
@@ -271,10 +262,8 @@ namespace DataExtractor.CASCLib
             {
                 resp = (HttpWebResponse)exc.Response;
 
-                if (exc.Status == WebExceptionStatus.ProtocolError && resp.StatusCode == (HttpStatusCode)429)
-                {
+                if (exc.Status == WebExceptionStatus.ProtocolError && (resp.StatusCode == HttpStatusCode.NotFound || resp.StatusCode == (HttpStatusCode)429))
                     return GetFileSize(cdnPath, numRetries + 1);
-                }
                 else
                     return -1;
             }
@@ -303,10 +292,8 @@ namespace DataExtractor.CASCLib
             {
                 resp = (HttpWebResponse)exc.Response;
 
-                if (exc.Status == WebExceptionStatus.ProtocolError && resp.StatusCode == (HttpStatusCode)429)
-                {
+                if (exc.Status == WebExceptionStatus.ProtocolError && (resp.StatusCode == HttpStatusCode.NotFound || resp.StatusCode == (HttpStatusCode)429))
                     return GetMetaData(cdnPath, fileName, numRetries + 1);
-                }
                 else
                     return null;
             }

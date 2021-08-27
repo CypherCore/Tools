@@ -223,7 +223,7 @@ public static partial class Detour
                 raycastLimitSqr = 0f;
             }
         }
-        private dtQueryData m_query = new dtQueryData();				//< Sliced query state.
+        private dtQueryData m_query = new();				//< Sliced query state.
 
         private dtNodePool m_tinyNodePool;	//< Pointer to small node pool.
         private dtNodePool m_nodePool;		//< Pointer to node pool.
@@ -885,7 +885,7 @@ public static partial class Detour
 
             nearestRef = 0;
 
-            dtFindNearestPolyQuery query = new dtFindNearestPolyQuery(this, center);
+            dtFindNearestPolyQuery query = new(this, center);
 
             dtStatus status = queryPolygons(center, extents, filter, query);
             if (dtStatusFailed(status))
@@ -1431,7 +1431,7 @@ public static partial class Detour
                 return DT_FAILURE;
             }
 
-            dtRaycastHit rayHit = new dtRaycastHit();
+            dtRaycastHit rayHit = new();
             rayHit.maxPath = 0;
 
             int iter = 0;
@@ -2580,7 +2580,7 @@ public static partial class Detour
         public dtStatus raycast(dtPolyRef startRef, float[] startPos, float[] endPos, dtQueryFilter filter, ref float t, float[] hitNormal, dtPolyRef[] path, ref uint pathCount, int maxPath)
         {
 
-            dtRaycastHit hit = new dtRaycastHit();
+            dtRaycastHit hit = new();
             hit.path = path;
             hit.maxPath = maxPath;
 
@@ -2671,16 +2671,16 @@ public static partial class Detour
 
             dtStatus status = DT_SUCCESS;
 
-            dtMeshTile prevTile = new dtMeshTile();
+            dtMeshTile prevTile = new();
             dtMeshTile nextTile;
-            dtPoly prevPoly = new dtPoly();
+            dtPoly prevPoly = new();
             dtPoly nextPoly;
             dtPolyRef curRef;
 
             // The API input has been checked already, skip checking internal data.
             curRef = startRef;
-            dtMeshTile tile = new dtMeshTile();
-            dtPoly poly = new dtPoly();
+            dtMeshTile tile = new();
+            dtPoly poly = new();
             m_nav.getTileAndPolyByRefUnsafe(curRef, ref tile, ref poly);
             nextTile = prevTile = tile;
             nextPoly = prevPoly = poly;

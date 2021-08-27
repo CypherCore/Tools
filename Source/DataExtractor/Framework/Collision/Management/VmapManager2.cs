@@ -59,7 +59,7 @@ namespace DataExtractor.Framework.Collision
             if (instanceTree == null)
             {
                 string mapFileName = GetMapFileName(mapId);
-                StaticMapTree newTree = new StaticMapTree(mapId, basePath);
+                StaticMapTree newTree = new(mapId, basePath);
                 if (!newTree.InitMap(mapFileName))
                     return false;
 
@@ -77,7 +77,7 @@ namespace DataExtractor.Framework.Collision
             var model = _loadedModelFiles.LookupByKey(filename);
             if (model == null)
             {
-                WorldModel worldmodel = new WorldModel();
+                WorldModel worldmodel = new();
                 if (!worldmodel.readFile(basepath + filename))
                 {
                     Console.WriteLine($"VMapManager: could not load '{filename}.vmo'");
@@ -149,10 +149,10 @@ namespace DataExtractor.Framework.Collision
             return -1;
         }
 
-        Dictionary<string, ManagedModel> _loadedModelFiles = new Dictionary<string, ManagedModel>();
-        Dictionary<uint, StaticMapTree> _instanceMapTrees = new Dictionary<uint, StaticMapTree>();
-        MultiMap<uint, uint> _childMapData = new MultiMap<uint, uint>();
-        Dictionary<uint, uint> _parentMapData = new Dictionary<uint, uint>();
+        Dictionary<string, ManagedModel> _loadedModelFiles = new();
+        Dictionary<uint, StaticMapTree> _instanceMapTrees = new();
+        MultiMap<uint, uint> _childMapData = new();
+        Dictionary<uint, uint> _parentMapData = new();
     }
 
     public class ManagedModel

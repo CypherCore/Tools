@@ -633,7 +633,7 @@ public static partial class Recast
                     }
                 }
 
-                List<rcPotentialDiagonal> sortedDiags = new List<rcPotentialDiagonal>();
+                List<rcPotentialDiagonal> sortedDiags = new();
                 for (var gg = 0; gg < ndiags; ++gg)
                     sortedDiags.Add(diags[gg]);
 
@@ -766,8 +766,8 @@ public static partial class Recast
 
         ctx.stopTimer(rcTimerLabel.RC_TIMER_BUILD_CONTOURS_TRACE);
 
-        List<int> verts = new List<int>(256);
-        List<int> simplified = new List<int>(64);
+        List<int> verts = new(256);
+        List<int> simplified = new(64);
 
         for (int y = 0; y < h; ++y)
         {

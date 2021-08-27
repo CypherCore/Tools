@@ -104,8 +104,7 @@ namespace System.Collections.Generic
 
         public bool Contains(KeyValuePair<TKey, TValue> item)
         {
-            List<TValue> valueList;
-            if (_interalStorage.TryGetValue(item.Key, out valueList))
+            if (_interalStorage.TryGetValue(item.Key, out List<TValue> valueList))
                 return valueList.Contains(item.Value);
             return false;
         }
@@ -137,7 +136,7 @@ namespace System.Collections.Generic
         {
             if (!_interalStorage.ContainsKey(key))
             {
-                value = default(TValue);
+                value = default;
                 return false;
             }
             value = _interalStorage[key].Last();
@@ -182,7 +181,7 @@ namespace System.Collections.Generic
         {
             get
             {
-                List<TValue> retVal = new List<TValue>();
+                List<TValue> retVal = new();
                 foreach (var item in _interalStorage)
                 {
                     retVal.AddRange(item.Value);
@@ -195,7 +194,7 @@ namespace System.Collections.Generic
         {
             get
             {
-                List<KeyValuePair<TKey, TValue>> retVal = new List<KeyValuePair<TKey, TValue>>();
+                List<KeyValuePair<TKey, TValue>> retVal = new();
                 foreach (var pair in _interalStorage)
                 {
                     foreach (var value in pair.Value)
@@ -260,7 +259,7 @@ namespace System.Collections.Generic
             return new MultiMapEnumerator<TKey, TValue>(this);
         }
 
-        private Dictionary<TKey, List<TValue>> _interalStorage = new Dictionary<TKey, List<TValue>>();
+        private Dictionary<TKey, List<TValue>> _interalStorage = new();
     }
 
     public class MultiMapEnumerator<TKey, TValue> : IEnumerator<KeyValuePair<TKey, TValue>>

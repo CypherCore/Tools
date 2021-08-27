@@ -27,7 +27,7 @@ public static partial class Recast{
 	    {
 		    // Create new page.
 		    // Allocate memory for the new pool.
-            rcSpanPool pool = new rcSpanPool();
+            rcSpanPool pool = new();
 		    if (pool == null) 
                 return null;
 		    pool.next = null;

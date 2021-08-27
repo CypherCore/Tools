@@ -7,8 +7,8 @@ namespace DataExtractor.CASCLib
 {
     public class LocalIndexHandler
     {
-        private static readonly MD5HashComparer comparer = new MD5HashComparer();
-        private Dictionary<MD5Hash, IndexEntry> LocalIndexData = new Dictionary<MD5Hash, IndexEntry>(comparer);
+        private static readonly MD5HashComparer comparer = new();
+        private Dictionary<MD5Hash, IndexEntry> LocalIndexData = new(comparer);
 
         public int Count
         {
@@ -37,72 +37,70 @@ namespace DataExtractor.CASCLib
 
         private unsafe void ParseIndex(string idx)
         {
-            using (var fs = new FileStream(idx, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var br = new BinaryReader(fs))
+            using var fs = new FileStream(idx, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var br = new BinaryReader(fs);
+            int h2Len = br.ReadInt32();
+            int h2Check = br.ReadInt32();
+            byte[] h2 = br.ReadBytes(h2Len);
+
+            long padPos = (8 + h2Len + 0x0F) & 0xFFFFFFF0;
+            fs.Position = padPos;
+
+            int dataLen = br.ReadInt32();
+            int dataCheck = br.ReadInt32();
+
+            int numBlocks = dataLen / 18;
+
+            //byte[] buf = new byte[8];
+
+            for (int i = 0; i < numBlocks; i++)
             {
-                int h2Len = br.ReadInt32();
-                int h2Check = br.ReadInt32();
-                byte[] h2 = br.ReadBytes(h2Len);
+                IndexEntry info = new();
+                byte[] keyBytes = br.ReadBytes(9);
+                Array.Resize(ref keyBytes, 16);
 
-                long padPos = (8 + h2Len + 0x0F) & 0xFFFFFFF0;
-                fs.Position = padPos;
+                MD5Hash key;
 
-                int dataLen = br.ReadInt32();
-                int dataCheck = br.ReadInt32();
+                fixed (byte* ptr = keyBytes)
+                    key = *(MD5Hash*)ptr;
 
-                int numBlocks = dataLen / 18;
+                byte indexHigh = br.ReadByte();
+                int indexLow = br.ReadInt32BE();
 
-                //byte[] buf = new byte[8];
+                info.Index = (indexHigh << 2 | (byte)((indexLow & 0xC0000000) >> 30));
+                info.Offset = (indexLow & 0x3FFFFFFF);
 
-                for (int i = 0; i < numBlocks; i++)
-                {
-                    IndexEntry info = new IndexEntry();
-                    byte[] keyBytes = br.ReadBytes(9);
-                    Array.Resize(ref keyBytes, 16);
+                //for (int j = 3; j < 8; j++)
+                //    buf[7 - j] = br.ReadByte();
 
-                    MD5Hash key;
+                //long val = BitConverter.ToInt64(buf, 0);
+                //info.Index = (int)(val / 0x40000000);
+                //info.Offset = (int)(val % 0x40000000);
 
-                    fixed (byte *ptr = keyBytes)
-                        key = *(MD5Hash*)ptr;
+                info.Size = br.ReadInt32();
 
-                    byte indexHigh = br.ReadByte();
-                    int indexLow = br.ReadInt32BE();
-
-                    info.Index = (indexHigh << 2 | (byte)((indexLow & 0xC0000000) >> 30));
-                    info.Offset = (indexLow & 0x3FFFFFFF);
-
-                    //for (int j = 3; j < 8; j++)
-                    //    buf[7 - j] = br.ReadByte();
-
-                    //long val = BitConverter.ToInt64(buf, 0);
-                    //info.Index = (int)(val / 0x40000000);
-                    //info.Offset = (int)(val % 0x40000000);
-
-                    info.Size = br.ReadInt32();
-
-                    // duplicate keys wtf...
-                    //IndexData[key] = info; // use last key
-                    if (!LocalIndexData.ContainsKey(key)) // use first key
-                        LocalIndexData.Add(key, info);
-                }
-
-                padPos = (dataLen + 0x0FFF) & 0xFFFFF000;
-                fs.Position = padPos;
-
-                fs.Position += numBlocks * 18;
-                //for (int i = 0; i < numBlocks; i++)
-                //{
-                //    var bytes = br.ReadBytes(18); // unknown data
-                //}
-
-                //if (fs.Position != fs.Length)
-                //    throw new Exception("idx file under read");
+                // duplicate keys wtf...
+                //IndexData[key] = info; // use last key
+                if (!LocalIndexData.ContainsKey(key)) // use first key
+                    LocalIndexData.Add(key, info);
             }
+
+            padPos = (dataLen + 0x0FFF) & 0xFFFFF000;
+            fs.Position = padPos;
+
+            fs.Position += numBlocks * 18;
+            //for (int i = 0; i < numBlocks; i++)
+            //{
+            //    var bytes = br.ReadBytes(18); // unknown data
+            //}
+
+            //if (fs.Position != fs.Length)
+            //    throw new Exception("idx file under read");
         }
 
         private static List<string> GetIdxFiles(CASCConfig config)
         {
-            List<string> latestIdx = new List<string>();
+            List<string> latestIdx = new();
 
             string dataFolder = CASCGame.GetDataFolder(config.GameType);
             string dataPath = Path.Combine(dataFolder, "data");

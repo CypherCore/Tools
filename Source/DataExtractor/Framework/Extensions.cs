@@ -18,8 +18,7 @@
 using DataExtractor.Framework.GameMath;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
-using System.Reflection.Emit;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -40,21 +39,26 @@ namespace System
 
         public static TValue LookupByKey<TKey, TValue>(this IDictionary<TKey, TValue> dict, object key)
         {
-            TValue val;
             TKey newkey = (TKey)Convert.ChangeType(key, typeof(TKey));
-            return dict.TryGetValue(newkey, out val) ? val : default;
+            return dict.TryGetValue(newkey, out TValue val) ? val : default;
         }
         public static TValue LookupByKey<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key)
         {
-            TValue val;
-            return dict.TryGetValue(key, out val) ? val : default;
+            return dict.TryGetValue(key, out TValue val) ? val : default;
+        }
+
+        public static bool HasAnyFlag<T>(this T value, T flag) where T : struct
+        {
+            long lValue = Convert.ToInt64(value);
+            long lFlag = Convert.ToInt64(flag);
+            return (lValue & lFlag) != 0;
         }
 
         #region BinaryReader
         public static string ReadCString(this BinaryReader reader)
         {
             byte num;
-            List<byte> temp = new List<byte>();
+            List<byte> temp = new();
 
             while ((num = reader.ReadByte()) != 0)
                 temp.Add(num);
@@ -164,6 +168,9 @@ namespace System
             if (index != -1)
                 fileName = fileName.Substring(index + 1);
 
+            if (fileName.Contains("FILE"))
+                return fileName;
+
             fileName = fileName.FixNameCase();
             fileName = fileName.Replace(' ', '_');
 
@@ -203,6 +210,61 @@ namespace System
 
             return Encoding.UTF8.GetByteCount(str);
         }
+        #endregion
+
+        #region Math
+        public static bool isFinite(this Vector3 vec) =>
+            float.IsInfinity(vec.X) && float.IsInfinity(vec.Y) && float.IsInfinity(vec.Z);
+
+        public static bool isNaN(this Vector3 vec) =>
+            float.IsNaN(vec.X) && float.IsNaN(vec.Y) && float.IsNaN(vec.Z);
+
+        public enum Axis { X = 0, Y = 1, Z = 2, Detect = -1 };
+        public static Axis PrimaryAxis(this Vector3 vec)
+        {
+            double nx = Math.Abs(vec.X);
+            double ny = Math.Abs(vec.Y);
+            double nz = Math.Abs(vec.Z);
+
+            Axis a;
+            if (nx > ny)
+                a = (nx > nz) ? Axis.X : Axis.Z;
+            else
+                a = (ny > nz) ? Axis.Y : Axis.Z;
+
+            return a;
+        }
+
+        public static float GetAt(this Vector3 vector, long index)
+        {
+            return index switch
+            {
+                0 => vector.X,
+                1 => vector.Y,
+                2 => vector.Z,
+                _ => throw new IndexOutOfRangeException(),
+            };
+        }
+
+        public static void SetAt(this ref Vector3 vector, float value, long index)
+        {
+            switch (index)
+            {
+                case 0:
+                    vector.X = value;
+                    break;
+                case 1:
+                    vector.Y = value;
+                    break;
+                case 2:
+                    vector.Z = value;
+                    break;
+                default:
+                    throw new IndexOutOfRangeException();
+            }
+        }
+
+        public static Matrix3 ToRotationMatrix(this Quaternion x) => new(x);
         #endregion
     }
 }

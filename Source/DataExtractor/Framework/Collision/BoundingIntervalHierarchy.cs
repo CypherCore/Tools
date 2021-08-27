@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace DataExtractor.Framework.Collision
@@ -51,7 +52,7 @@ namespace DataExtractor.Framework.Collision
             tempTree.Add(0);
 
             // seed bbox
-            AABound gridBox = new AABound();
+            AABound gridBox = new();
             gridBox.lo = bounds.Lo;
             gridBox.hi = bounds.Hi;
             AABound nodeBox = gridBox;
@@ -77,27 +78,25 @@ namespace DataExtractor.Framework.Collision
             {
                 prevAxis = axis;
                 prevSplit = split;
+
                 // perform quick consistency checks
                 Vector3 d = gridBox.hi - gridBox.lo;
-                for (int i = 0; i < 3; i++)
-                {
-                    //if (nodeBox.hi[i] < gridBox.lo[i] || nodeBox.lo[i] > gridBox.hi[i])
-                        //Log.outError(LogFilter.Server, "Reached tree area in error - discarding node with: {0} objects", right - left + 1);
-                }
+
                 // find longest axis
-                axis = (int)d.primaryAxis();
-                split = 0.5f * (gridBox.lo[axis] + gridBox.hi[axis]);
+                axis = (int)d.PrimaryAxis();
+                split = 0.5f * (gridBox.lo.GetAt(axis) + gridBox.hi.GetAt(axis));
                 // partition L/R subsets
                 clipL = float.NegativeInfinity;
                 clipR = float.PositiveInfinity;
                 rightOrig = right; // save this for later
                 float nodeL = float.PositiveInfinity;
                 float nodeR = float.NegativeInfinity;
+
                 for (int i = left; i <= right; )
                 {
                     uint obj = dat.indices[i];
-                    float minb = dat.primBound[obj].Lo[axis];
-                    float maxb = dat.primBound[obj].Hi[axis];
+                    float minb = dat.primBound[obj].Lo.GetAt(axis);
+                    float maxb = dat.primBound[obj].Hi.GetAt(axis);
                     float center = (minb + maxb) * 0.5f;
 
                     if (center <= split)
@@ -120,10 +119,11 @@ namespace DataExtractor.Framework.Collision
                     nodeL = Math.Min(nodeL, minb);
                     nodeR = Math.Max(nodeR, maxb);
                 }
+
                 // check for empty space
-                if (nodeL > nodeBox.lo[axis] && nodeR < nodeBox.hi[axis])
+                if (nodeL > nodeBox.lo.GetAt(axis) && nodeR < nodeBox.hi.GetAt(axis))
                 {
-                    float nodeBoxW = nodeBox.hi[axis] - nodeBox.lo[axis];
+                    float nodeBoxW = nodeBox.hi.GetAt(axis) - nodeBox.lo.GetAt(axis);
                     float nodeNewW = nodeR - nodeL;
                     // node box is too big compare to space occupied by primitives?
                     if (1.3f * nodeNewW < nodeBoxW)
@@ -139,9 +139,11 @@ namespace DataExtractor.Framework.Collision
                         tempTree[nodeIndex + 0] = (uint)((axis << 30) | (1 << 29) | nextIndex1);
                         tempTree[nodeIndex + 1] = floatToRawIntBits(nodeL);
                         tempTree[nodeIndex + 2] = floatToRawIntBits(nodeR);
+
                         // update nodebox and recurse
-                        nodeBox.lo[axis] = nodeL;
-                        nodeBox.hi[axis] = nodeR;
+                        nodeBox.lo.SetAt(nodeL, axis);
+                        nodeBox.hi.SetAt(nodeR, axis);
+
                         subdivide(left, rightOrig, tempTree, dat, gridBox, nodeBox, nextIndex1, depth + 1, stats);
                         return;
                     }
@@ -157,15 +159,17 @@ namespace DataExtractor.Framework.Collision
                         createNode(tempTree, nodeIndex, left, right);
                         return;
                     }
+
                     if (clipL <= split)
                     {
                         // keep looping on left half
-                        gridBox.hi[axis] = split;
+                        gridBox.hi.SetAt(split, axis);
                         prevClip = clipL;
                         wasLeft = true;
                         continue;
                     }
-                    gridBox.hi[axis] = split;
+
+                    gridBox.hi.SetAt(split, axis);
                     prevClip = float.NaN;
                 }
                 else if (left > right)
@@ -183,12 +187,13 @@ namespace DataExtractor.Framework.Collision
                     if (clipR >= split)
                     {
                         // keep looping on right half
-                        gridBox.lo[axis] = split;
+                        gridBox.lo.SetAt(split, axis);
                         prevClip = clipR;
                         wasLeft = false;
                         continue;
                     }
-                    gridBox.lo[axis] = split;
+
+                    gridBox.lo.SetAt(split, axis);
                     prevClip = float.NaN;
                 }
                 else
@@ -243,6 +248,7 @@ namespace DataExtractor.Framework.Collision
             }
             else
                 nextIndex -= 3;
+
             // allocate right node
             if (nr > 0)
             {
@@ -250,19 +256,24 @@ namespace DataExtractor.Framework.Collision
                 tempTree.Add(0);
                 tempTree.Add(0);
             }
+
             // write leaf node
             stats.updateInner();
             tempTree[nodeIndex + 0] = (uint)((axis << 30) | nextIndex);
             tempTree[nodeIndex + 1] = floatToRawIntBits(clipL);
             tempTree[nodeIndex + 2] = floatToRawIntBits(clipR);
+
             // prepare L/R child boxes
             AABound gridBoxL = gridBox;
             AABound gridBoxR = gridBox;
             AABound nodeBoxL = nodeBox;
             AABound nodeBoxR = nodeBox;
-            gridBoxL.hi[axis] = gridBoxR.lo[axis] = split;
-            nodeBoxL.hi[axis] = clipL;
-            nodeBoxR.lo[axis] = clipR;
+
+            gridBoxR.lo.SetAt(split, axis);
+            gridBoxL.hi.SetAt(split, axis);
+            nodeBoxL.hi.SetAt(clipL, axis);
+            nodeBoxR.lo.SetAt(clipR, axis);
+
             // recurse
             if (nl > 0)
                 subdivide(left, right, tempTree, dat, gridBoxL, nodeBoxL, nextIndex, depth + 1, stats);
@@ -330,8 +341,8 @@ namespace DataExtractor.Framework.Collision
                 getBounds(primitives[i], out dat.primBound[i]);
                 bounds.merge(dat.primBound[i]);
             }
-            List<uint> tempTree = new List<uint>();
-            BuildStats stats = new BuildStats();
+            List<uint> tempTree = new();
+            BuildStats stats = new();
             buildHierarchy(tempTree, dat, stats);
 
             for (int i = 0; i < dat.numPrims; ++i)
@@ -402,8 +413,8 @@ namespace DataExtractor.Framework.Collision
         }
 
         AxisAlignedBox bounds = AxisAlignedBox.NaN;
-        List<uint> tree = new List<uint>();
-        List<uint> objects = new List<uint>();
+        List<uint> tree = new();
+        List<uint> objects = new();
 
         [StructLayout(LayoutKind.Explicit)]
         public struct FloatToIntConverter
@@ -416,7 +427,7 @@ namespace DataExtractor.Framework.Collision
 
         uint floatToRawIntBits(float f)
         {
-            FloatToIntConverter converter = new FloatToIntConverter();
+            FloatToIntConverter converter = new();
             converter.FloatValue = f;
             return converter.IntValue;
         }

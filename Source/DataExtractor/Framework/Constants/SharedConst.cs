@@ -46,6 +46,12 @@ namespace DataExtractor.Framework.Constants
         public const uint MMAP_MAGIC = 0x4D4D4150;   // 'MMAP'
         public const uint MMAP_VERSION = 9;
         public const uint MAP_VERSION_MAGIC = 0x392E3176;
+
+        public const uint MAP_MAGIC = 0x5350414D; //"MAPS";
+        public const uint MAP_AREA_MAGIC = 0x41455241; //"AREA";
+        public const uint MAP_HEIGHT_MAGIC = 0x5447484D; //"MHGT";
+        public const uint MAP_LIQUID_MAGIC = 0x51494C4D; //"MLIQ";
+
         public const int DT_NAVMESH_VERSION = 7;
         public const int DT_VERTS_PER_POLYGON = 6;
         public const int RC_WALKABLE_AREA = 63;
@@ -61,6 +67,12 @@ namespace DataExtractor.Framework.Constants
         // see contrib/extractor/system.cpp, CONF_use_minHeight
         public const float INVALID_MAP_LIQ_HEIGHT = -2000.0f;
         public const float INVALID_MAP_LIQ_HEIGHT_MAX = 5000.0f;
+
+        public static int ADT_CELLS_PER_GRID = 16;
+        public static int ADT_CELL_SIZE = 8;
+        public static int ADT_GRID_SIZE = (ADT_CELLS_PER_GRID * ADT_CELL_SIZE);
+
+        public static int MCVT_HEIGHT_MAP_SIZE = (ADT_CELL_SIZE + 1) * (ADT_CELL_SIZE + 1) + ADT_CELL_SIZE * ADT_CELL_SIZE;
     }
 
     public enum LiquidType
@@ -83,14 +95,17 @@ namespace DataExtractor.Framework.Constants
         DarkWater = 0x10
     }
 
+    [Flags]
     public enum MapHeightFlags
     {
-        NoHeight = 0x0001,
-        AsInt16 = 0x0002,
-        AsInt8 = 0x0004,
-        HasFlightBounds = 0x0008
+        None = 0x00,
+        NoHeight = 0x01,
+        AsInt16 = 0x02,
+        AsInt8 = 0x04,
+        HasFlightBounds = 0x08
     }
 
+    [Flags]
     public enum MopyFlags
     {
         Unk01 = 0x01,
@@ -101,6 +116,30 @@ namespace DataExtractor.Framework.Constants
         Render = 0x20,
         WallSurface = 0x40, // Guessed
         CollideHit = 0x80
+    }
+
+    [Flags]
+    public enum MCNKFlags : uint
+    {
+        HasMCSH = 0x00001,
+        Impass = 0x00002,
+        LiquidRiver = 0x00004,
+        LiquidOcean = 0x00008,
+        LiquidMagma = 0x00010,
+        LiquidSlime = 0x00020,
+        HasMCCV = 0x00040,
+        DoNotFixAlphaMap = 0x08000,
+        HighResHoles = 0x10000,
+    }
+
+    public enum LiquidVertexFormatType : short
+    {
+        HeightDepth = 0,
+        HeightTextureCoord = 1,
+        Depth = 2,
+        HeightDepthTextureCoord = 3,
+        Unk4 = 4,
+        Unk5 = 5
     }
 
     public struct ModelFlags
@@ -141,5 +180,27 @@ namespace DataExtractor.Framework.Constants
         Ground = 1 << (63 - NavArea.Ground),
         Water = 1 << (63 - NavArea.Water),
         MagmaSlime = 1 << (63 - NavArea.MagmaSlime)
+    }
+
+    [Flags]
+    public enum MODFFlags : ushort
+    {
+        Destroyable = 0x01,
+        UseLod = 0x02,
+        UnkHasScale = 0x04,
+        EntryIsFileID = 0x08,
+        seSetsFromMWDS = 0x80,
+    }
+
+    [Flags]
+    public enum MDDFFlags : ushort
+    {
+        Biodome = 0x001,
+        Shrubbery = 0x002,
+        Unk0x4 = 0x004,
+        Unk0x8 = 0x008,
+        LiquidKnown = 0x020,
+        EntryIsFileID = 0x040,
+        Unk0x100 = 0x100,
     }
 }

@@ -20,6 +20,7 @@ using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
 
 namespace DataExtractor.Framework.Collision
 {
@@ -117,7 +118,7 @@ namespace DataExtractor.Framework.Collision
 
         public static WmoLiquid ReadFromFile(BinaryReader reader)
         {
-            WmoLiquid liquid = new WmoLiquid();
+            WmoLiquid liquid = new();
 
             liquid.iTilesX = reader.ReadUInt32();
             liquid.iTilesY = reader.ReadUInt32();
@@ -180,7 +181,7 @@ namespace DataExtractor.Framework.Collision
         {
             vertices = vert;
             triangles = tri;
-            TriBoundFunc bFunc = new TriBoundFunc(vertices);
+            TriBoundFunc bFunc = new(vertices);
             meshTree.build(triangles, bFunc.Invoke);
         }
 
@@ -299,9 +300,9 @@ namespace DataExtractor.Framework.Collision
         AxisAlignedBox iBound = AxisAlignedBox.NaN;
         uint iMogpFlags;
         uint iGroupWMOID;
-        List<Vector3> vertices = new List<Vector3>();
-        List<MeshTriangle> triangles = new List<MeshTriangle>();
-        BIH meshTree = new BIH();
+        List<Vector3> vertices = new();
+        List<MeshTriangle> triangles = new();
+        BIH meshTree = new();
         WmoLiquid iLiquid;
     }
 
@@ -326,25 +327,23 @@ namespace DataExtractor.Framework.Collision
 
         public void writeFile(string filename)
         {
-            using (BinaryWriter writer = new BinaryWriter(File.Open(filename.TrimEnd('\0'), FileMode.Create)))
+            using BinaryWriter writer = new(File.Open(filename.TrimEnd('\0'), FileMode.Create));
+            writer.WriteString(SharedConst.VMAP_MAGIC);
+            writer.WriteString("WMOD");
+            writer.Write(4 + 4);
+            writer.Write(RootWMOID);
+
+            // write group models
+            if (groupModels.Count != 0)
             {
-                writer.WriteString(SharedConst.VMAP_MAGIC);
-                writer.WriteString("WMOD");
-                writer.Write(4 + 4);
-                writer.Write(RootWMOID);
+                writer.WriteString("GMOD");
+                writer.Write(groupModels.Count);
+                for (int i = 0; i < groupModels.Count; ++i)
+                    groupModels[i].WriteToFile(writer);
 
-                // write group models
-                if (groupModels.Count != 0)
-                {
-                    writer.WriteString("GMOD");
-                    writer.Write(groupModels.Count);
-                    for (int i = 0; i < groupModels.Count; ++i)
-                        groupModels[i].WriteToFile(writer);
-
-                    // write group BIH
-                    writer.WriteString("GBIH");
-                    groupTree.writeToFile(writer);
-                }
+                // write group BIH
+                writer.WriteString("GBIH");
+                groupTree.writeToFile(writer);
             }
         }
 
@@ -357,37 +356,35 @@ namespace DataExtractor.Framework.Collision
                     return false;
             }
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            using BinaryReader binaryReader = new(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read));
+            uint chunkSize = 0;
+            uint count = 0;
+            if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
+                return false;
+
+            if (binaryReader.ReadStringFromChars(4) != "WMOD")
+                return false;
+            chunkSize = binaryReader.ReadUInt32();
+            RootWMOID = binaryReader.ReadUInt32();
+
+            // read group models
+            if (binaryReader.ReadStringFromChars(4) != "GMOD")
+                return false;
+
+            count = binaryReader.ReadUInt32();
+            for (var i = 0; i < count; ++i)
             {
-                uint chunkSize = 0;
-                uint count = 0;
-                if (binaryReader.ReadStringFromChars(8) != SharedConst.VMAP_MAGIC)
-                    return false;
-
-                if (binaryReader.ReadStringFromChars(4) != "WMOD")
-                    return false;
-                chunkSize = binaryReader.ReadUInt32();
-                RootWMOID = binaryReader.ReadUInt32();
-
-                // read group models
-                if (binaryReader.ReadStringFromChars(4) != "GMOD")
-                    return false;
-
-                count = binaryReader.ReadUInt32();
-                for (var i = 0; i < count; ++i)
-                {
-                    GroupModel group = new GroupModel();
-                    group.ReadFromFile(binaryReader);
-                    groupModels.Add(group);
-                }
-
-                // read group BIH
-                if (binaryReader.ReadStringFromChars(4) != "GBIH")
-                    return false;
-
-                groupTree.readFromFile(binaryReader);
-                return true;
+                GroupModel group = new();
+                group.ReadFromFile(binaryReader);
+                groupModels.Add(group);
             }
+
+            // read group BIH
+            if (binaryReader.ReadStringFromChars(4) != "GBIH")
+                return false;
+
+            groupTree.readFromFile(binaryReader);
+            return true;
         }
 
         public void getGroupModels(out List<GroupModel> outGroupModels)
@@ -397,8 +394,8 @@ namespace DataExtractor.Framework.Collision
 
         public void setRootWmoID(uint id) { RootWMOID = id; }
 
-        List<GroupModel> groupModels = new List<GroupModel>();
-        BIH groupTree = new BIH();
+        List<GroupModel> groupModels = new();
+        BIH groupTree = new();
         uint RootWMOID;
     }
 }

@@ -17,40 +17,42 @@
 
 using DataExtractor.Framework.Constants;
 using DataExtractor.Framework.GameMath;
+using DataExtractor.Map;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace DataExtractor.Vmap
 {
     class Model
     {
-        public bool open(string fileName)
+        public bool Open(string fileName)
         {
-            using (var stream = Program.CascHandler.OpenFile(fileName))
+            if (fileName.Contains("file", StringComparison.InvariantCultureIgnoreCase))
             {
-                if (stream == null)
+                var b = fileName.Substring(4, 8);
+                if (!int.TryParse(fileName.Substring(4, 8), System.Globalization.NumberStyles.HexNumber, null, out int fileId))
                     return false;
 
-                return Read(stream);
+                return Read(Program.CascHandler.OpenFile((int)fileId));
             }
+            else
+                return Read(Program.CascHandler.OpenFile(fileName));
         }
 
-        public bool open(uint fileId)
+        public bool Open(uint fileId)
         {
-            using (var stream = Program.CascHandler.OpenFile((int)fileId))
-            {
-                if (stream == null)
-                    return false;
-
-                return Read(stream);
-            }
+            return Read(Program.CascHandler.OpenFile((int)fileId));
         }
 
         bool Read(Stream stream)
         {
-            using (BinaryReader reader = new BinaryReader(stream))
+            if (stream == null)
+                return false;
+
+            using (BinaryReader reader = new(stream))
             {
                 Unload();
 
@@ -76,7 +78,7 @@ namespace DataExtractor.Vmap
                         vertices[i] = reader.Read<Vector3>();
 
                     for (uint i = 0; i < header.nBoundingVertices; i++)
-                        vertices[i] = fixCoordSystem(vertices[i]);
+                        vertices[i] = FixCoordinateSystem(vertices[i]);
 
                     reader.BaseStream.Seek(m2start + header.ofsBoundingTriangles, SeekOrigin.Begin);
                     indices = new ushort[header.nBoundingTriangles];
@@ -98,7 +100,7 @@ namespace DataExtractor.Vmap
         public bool ConvertToVMAPModel(string outfilename)
         {
             int[] N = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-            using (BinaryWriter binaryWriter = new BinaryWriter(File.Open(outfilename, FileMode.Create, FileAccess.Write)))
+            using (BinaryWriter binaryWriter = new(File.Open(outfilename, FileMode.Create, FileAccess.Write)))
             {
                 binaryWriter.WriteCString(SharedConst.RAW_VMAP_MAGIC);
 
@@ -162,12 +164,12 @@ namespace DataExtractor.Vmap
             return true;
         }
 
-        public static void Extract(MDDF doodadDef, string ModelInstName, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
+        public static void Extract(MDDF.SMDoodadDef doodadDef, string modelInstanceName, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
         {
-            if (!File.Exists(Program.WmoDirectory + ModelInstName))
+            if (!File.Exists(Program.BuildingsDirectory + modelInstanceName))
                 return;
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.WmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            using (BinaryReader binaryReader = new(File.Open(Program.BuildingsDirectory + modelInstanceName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
                 int nVertices = binaryReader.ReadInt32();
@@ -178,7 +180,7 @@ namespace DataExtractor.Vmap
             // scale factor - divide by 1024. blizzard devs must be on crack, why not just use a float?
             float sc = doodadDef.Scale / 1024.0f;
 
-            Vector3 position = fixCoords(doodadDef.Position);
+            Vector3 position = FixCoordinates(doodadDef.Position);
 
             ushort nameSet = 0;// not used for models
             uint uniqueId = VmapFile.GenerateUniqueObjectId(doodadDef.UniqueId, 0);
@@ -195,35 +197,38 @@ namespace DataExtractor.Vmap
             writer.WriteVector3(position);
             writer.WriteVector3(doodadDef.Rotation);
             writer.Write(sc);
-            writer.Write(ModelInstName.GetByteCount());
-            writer.WriteString(ModelInstName);
+            writer.Write(modelInstanceName.GetByteCount());
+            writer.WriteString(modelInstanceName);
 
             if (dirfileCache != null)
             {
-                ADTOutputCache cacheModelData = new ADTOutputCache();
+                ADTOutputCache cacheModelData = new();
                 cacheModelData.Flags = flags & ~ModelFlags.ParentSpawn;
 
-                MemoryStream stream = new MemoryStream();
-                BinaryWriter cacheData = new BinaryWriter(stream);
+                MemoryStream stream = new();
+                BinaryWriter cacheData = new(stream);
                 cacheData.Write(nameSet);
                 cacheData.Write(uniqueId);
                 cacheData.WriteVector3(position);
                 cacheData.WriteVector3(doodadDef.Rotation);
                 cacheData.Write(sc);
-                cacheData.Write(ModelInstName.GetByteCount());
-                cacheData.WriteString(ModelInstName);
+                cacheData.Write(modelInstanceName.GetByteCount());
+                cacheData.WriteString(modelInstanceName);
 
                 cacheModelData.Data = stream.ToArray();
                 dirfileCache.Add(cacheModelData);
             }
         }
 
-        public static void ExtractSet(WMODoodadData doodadData, MODF wmo, bool isGlobalWmo, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
+        public static void ExtractSet(WMODoodadData doodadData, MODF.SMMapObjDef wmo, bool isGlobalWmo, uint mapID, uint originalMapId, BinaryWriter writer, List<ADTOutputCache> dirfileCache)
         {
+            if (doodadData == null)
+                return;
+
             if (wmo.DoodadSet >= doodadData.Sets.Count)
                 return;
 
-            Vector3 wmoPosition = new Vector3(wmo.Position.Z, wmo.Position.X, wmo.Position.Y);
+            Vector3 wmoPosition = new(wmo.Position.Z, wmo.Position.X, wmo.Position.Y);
             Matrix3 wmoRotation = Matrix3.fromEulerAnglesZYX(MathFunctions.toRadians(wmo.Rotation.Y), MathFunctions.toRadians(wmo.Rotation.X), MathFunctions.toRadians(wmo.Rotation.Z));
 
             if (isGlobalWmo)
@@ -231,95 +236,96 @@ namespace DataExtractor.Vmap
 
             ushort doodadId = 0;
             MODS doodadSetData = doodadData.Sets[wmo.DoodadSet];
-            using (BinaryReader reader = new BinaryReader(new MemoryStream(doodadData.Paths)))
+            if (doodadData.Paths == null)
+                return;
+
+            using BinaryReader reader = new(new MemoryStream(doodadData.Paths));
+            foreach (ushort doodadIndex in doodadData.References)
             {
-                foreach (ushort doodadIndex in doodadData.References)
+                if (doodadIndex < doodadSetData.StartIndex ||
+                    doodadIndex >= doodadSetData.StartIndex + doodadSetData.Count)
+                    continue;
+
+                MODD doodad = doodadData.Spawns[doodadIndex];
+
+                reader.BaseStream.Position = doodad.NameIndex;
+                string ModelInstName = reader.ReadCString().GetPlainName();
+
+                if (ModelInstName.Length > 3)
                 {
-                    if (doodadIndex < doodadSetData.StartIndex ||
-                        doodadIndex >= doodadSetData.StartIndex + doodadSetData.Count)
+                    string extension = ModelInstName.Substring(ModelInstName.Length - 4);
+                    if (extension == ".mdx" || extension == ".mdl")
+                    {
+                        ModelInstName = ModelInstName.Remove(ModelInstName.Length - 2, 2);
+                        ModelInstName += "2";
+                    }
+                }
+
+                if (!File.Exists(Program.BuildingsDirectory + ModelInstName))
+                    continue;
+
+                using (BinaryReader binaryReader = new(File.Open(Program.BuildingsDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+                {
+                    binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
+                    int nVertices = binaryReader.ReadInt32();
+                    if (nVertices == 0)
                         continue;
+                }
+                ++doodadId;
 
-                    MODD doodad = doodadData.Spawns[doodadIndex];
+                Vector3 position = wmoPosition + (wmoRotation * new Vector3(doodad.Position.X, doodad.Position.Y, doodad.Position.Z));
 
-                    reader.BaseStream.Position = doodad.NameIndex;
-                    string ModelInstName = reader.ReadCString().GetPlainName();
+                Vector3 rotation;
+                (new Quaternion(doodad.Rotation.X, doodad.Rotation.Y, doodad.Rotation.Z, doodad.Rotation.W).ToRotationMatrix() * wmoRotation).toEulerAnglesXYZ(out rotation.Z, out rotation.X, out rotation.Y);
 
-                    if (ModelInstName.Length > 3)
-                    {
-                        string extension = ModelInstName.Substring(ModelInstName.Length - 4);
-                        if (extension == ".mdx" || extension == ".mdl")
-                        {
-                            ModelInstName = ModelInstName.Remove(ModelInstName.Length - 2, 2);
-                            ModelInstName += "2";
-                        }
-                    }
+                rotation.Z = MathFunctions.toDegrees(rotation.Z);
+                rotation.X = MathFunctions.toDegrees(rotation.X);
+                rotation.Y = MathFunctions.toDegrees(rotation.Y);
 
-                    if (!File.Exists(Program.WmoDirectory + ModelInstName))
-                        continue;
+                ushort nameSet = 0;     // not used for models
+                uint uniqueId = VmapFile.GenerateUniqueObjectId(wmo.UniqueId, doodadId);
+                uint flags = ModelFlags.M2;
+                if (mapID != originalMapId)
+                    flags |= ModelFlags.ParentSpawn;
 
-                    using (BinaryReader binaryReader = new BinaryReader(File.Open(Program.WmoDirectory + ModelInstName, FileMode.Open, FileAccess.Read, FileShare.Read)))
-                    {
-                        binaryReader.BaseStream.Seek(8, SeekOrigin.Begin); // get the correct no of vertices
-                        int nVertices = binaryReader.ReadInt32();
-                        if (nVertices == 0)
-                            continue;
-                    }
-                    ++doodadId;
+                //write mapID, Flags, NameSet, UniqueId, Pos, Rot, Scale, name
+                writer.Write(mapID);
+                writer.Write(flags);
+                writer.Write(nameSet);
+                writer.Write(uniqueId);
+                writer.WriteVector3(position);
+                writer.WriteVector3(rotation);
+                writer.Write(doodad.Scale);
+                writer.Write(ModelInstName.GetByteCount());
+                writer.WriteString(ModelInstName);
 
-                    Vector3 position = wmoPosition + (wmoRotation * new Vector3(doodad.Position.X, doodad.Position.Y, doodad.Position.Z));
+                if (dirfileCache != null)
+                {
+                    ADTOutputCache cacheModelData = new();
+                    cacheModelData.Flags = flags & ~ModelFlags.ParentSpawn;
 
-                    Vector3 rotation;
-                    (new Quaternion(doodad.Rotation.X, doodad.Rotation.Y, doodad.Rotation.Z, doodad.Rotation.W).toRotationMatrix() * wmoRotation).toEulerAnglesXYZ(out rotation.Z, out rotation.X, out rotation.Y);
+                    MemoryStream stream = new();
+                    BinaryWriter cacheData = new(stream);
+                    cacheData.Write(nameSet);
+                    cacheData.Write(uniqueId);
+                    cacheData.WriteVector3(position);
+                    cacheData.WriteVector3(rotation);
+                    cacheData.Write(doodad.Scale);
+                    cacheData.Write(ModelInstName.GetByteCount());
+                    cacheData.WriteString(ModelInstName);
 
-                    rotation.Z = MathFunctions.toDegrees(rotation.Z);
-                    rotation.X = MathFunctions.toDegrees(rotation.X);
-                    rotation.Y = MathFunctions.toDegrees(rotation.Y);
-
-                    ushort nameSet = 0;     // not used for models
-                    uint uniqueId = VmapFile.GenerateUniqueObjectId(wmo.UniqueId, doodadId);
-                    uint flags = ModelFlags.M2;
-                    if (mapID != originalMapId)
-                        flags |= ModelFlags.ParentSpawn;
-
-                    //write mapID, Flags, NameSet, UniqueId, Pos, Rot, Scale, name
-                    writer.Write(mapID);
-                    writer.Write(flags);
-                    writer.Write(nameSet);
-                    writer.Write(uniqueId);
-                    writer.WriteVector3(position);
-                    writer.WriteVector3(rotation);
-                    writer.Write(doodad.Scale);
-                    writer.Write(ModelInstName.GetByteCount());
-                    writer.WriteString(ModelInstName);
-
-                    if (dirfileCache != null)
-                    {
-                        ADTOutputCache cacheModelData = new ADTOutputCache();
-                        cacheModelData.Flags = flags & ~ModelFlags.ParentSpawn;
-
-                        MemoryStream stream = new MemoryStream();
-                        BinaryWriter cacheData = new BinaryWriter(stream);
-                        cacheData.Write(nameSet);
-                        cacheData.Write(uniqueId);
-                        cacheData.WriteVector3(position);
-                        cacheData.WriteVector3(rotation);
-                        cacheData.Write(doodad.Scale);
-                        cacheData.Write(ModelInstName.GetByteCount());
-                        cacheData.WriteString(ModelInstName);
-
-                        cacheModelData.Data = stream.ToArray();
-                        dirfileCache.Add(cacheModelData);
-                    }
+                    cacheModelData.Data = stream.ToArray();
+                    dirfileCache.Add(cacheModelData);
                 }
             }
         }
 
-        Vector3 fixCoordSystem(Vector3 v)
+        Vector3 FixCoordinateSystem(Vector3 v)
         {
             return new Vector3(v.X, v.Z, -v.Y);
         }
 
-        static Vector3 fixCoords(Vector3 v) { return new Vector3(v.Z, v.X, v.Y); }
+        static Vector3 FixCoordinates(Vector3 v) { return new Vector3(v.Z, v.X, v.Y); }
 
         ModelHeader header;
         Vector3[] vertices;

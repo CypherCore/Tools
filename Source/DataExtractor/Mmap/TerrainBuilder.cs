@@ -22,6 +22,7 @@ using DataExtractor.Framework.GameMath;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
 
 namespace DataExtractor.Mmap
 {
@@ -94,7 +95,7 @@ namespace DataExtractor.Mmap
             if (!File.Exists(mapFileName))
                 return false;
 
-            using (BinaryReader reader = new BinaryReader(File.Open(mapFileName, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            using (BinaryReader reader = new(File.Open(mapFileName, FileMode.Open, FileAccess.Read, FileShare.Read)))
             {
                 map_fileheader fheader = reader.Read<map_fileheader>();
                 if (fheader.versionMagic != SharedConst.MAP_VERSION_MAGIC)
@@ -135,8 +136,8 @@ namespace DataExtractor.Mmap
                     liquid_flags[i] = new byte[16];
                 }
 
-                List<int> ltriangles = new List<int>();
-                List<int> ttriangles = new List<int>();
+                List<int> ltriangles = new();
+                List<int> ttriangles = new();
 
                 // terrain data
                 if (haveTerrain)
@@ -254,7 +255,7 @@ namespace DataExtractor.Mmap
                 if (haveLiquid)
                 {
                     reader.BaseStream.Seek(fheader.liquidMapOffset, SeekOrigin.Begin);
-                    map_liquidHeader lheader = reader.Read<map_liquidHeader>();
+                    MapLiquidHeader lheader = reader.Read<MapLiquidHeader>();
 
                     float[] liquid_map = null;
                     if (!Convert.ToBoolean(lheader.flags & 0x0001))
@@ -616,15 +617,12 @@ namespace DataExtractor.Mmap
                 if (!result)
                     break;
 
-                Dictionary<uint, StaticMapTree> instanceTrees;
-                vmapManager.GetInstanceMapTree(out instanceTrees);
+                vmapManager.GetInstanceMapTree(out Dictionary<uint, StaticMapTree> instanceTrees);
 
                 if (instanceTrees[mapID] == null)
                     break;
 
-                ModelInstance[] models = null;
-                uint count;
-                instanceTrees[mapID].GetModelInstances(out models, out count);
+                instanceTrees[mapID].GetModelInstances(out ModelInstance[] models, out uint count);
 
                 if (models == null)
                     break;
@@ -643,8 +641,7 @@ namespace DataExtractor.Mmap
                     // now we have a model to add to the meshdata
                     retval = true;
 
-                    List<GroupModel> groupModels;
-                    worldModel.getGroupModels(out groupModels);
+                    worldModel.getGroupModels(out List<GroupModel> groupModels);
 
                     // all M2s need to have triangle indices reversed
                     bool isM2 = (instance.flags & ModelFlags.M2) != 0;
@@ -658,12 +655,9 @@ namespace DataExtractor.Mmap
 
                     foreach (var it in groupModels)
                     {
-                        List<Vector3> tempVertices;
-                        List<Vector3> transformedVertices = new List<Vector3>();
-                        List<MeshTriangle> tempTriangles;
-                        WmoLiquid liquid = null;
+                        List<Vector3> transformedVertices = new();
 
-                        it.GetMeshData(out tempVertices, out tempTriangles, out liquid);
+                        it.GetMeshData(out List<Vector3> tempVertices, out List<MeshTriangle> tempTriangles, out WmoLiquid liquid);
 
                         // first handle collision mesh
                         transform(tempVertices.ToArray(), transformedVertices, scale, rotation, position);
@@ -676,11 +670,10 @@ namespace DataExtractor.Mmap
                         // now handle liquid data
                         if (liquid != null && liquid.iFlags != null)
                         {
-                            List<Vector3> liqVerts = new List<Vector3>();
-                            List<uint> liqTris = new List<uint>();
-                            uint tilesX, tilesY, vertsX, vertsY;
-                            Vector3 corner;
-                            liquid.GetPosInfo(out tilesX, out tilesY, out corner);
+                            List<Vector3> liqVerts = new();
+                            List<uint> liqTris = new();
+                            uint vertsX, vertsY;
+                            liquid.GetPosInfo(out uint tilesX, out uint tilesY, out Vector3 corner);
                             vertsX = tilesX + 1;
                             vertsY = tilesY + 1;
                             byte[] flags = liquid.iFlags;
@@ -772,7 +765,8 @@ namespace DataExtractor.Mmap
             foreach (var it in source)
             {
                 // apply tranform, then mirror along the horizontal axes
-                Vector3 v = new Vector3(it * rotation * scale + position);
+                Vector3 other = it * rotation * scale + position;
+                Vector3 v = new(other.X, other.Y, other.Z);
                 v.X *= -1.0f;
                 v.Y *= -1.0f;
                 transformedVertices.Add(v);
@@ -837,9 +831,9 @@ namespace DataExtractor.Mmap
         /**************************************************************************/
         public static void cleanVertices(List<float> verts, List<int> tris)
         {
-            Dictionary<int, int> vertMap = new Dictionary<int, int>();
+            Dictionary<int, int> vertMap = new();
 
-            List<float> cleanVerts = new List<float>();
+            List<float> cleanVerts = new();
             int index, count = 0;
             // collect all the vertex indices from triangle
             for (int i = 0; i < tris.Count; ++i)
@@ -885,43 +879,41 @@ namespace DataExtractor.Mmap
                 return;
             }
 
-            using (BinaryReader binaryReader = new BinaryReader(File.Open(offMeshFilePath, FileMode.Open, FileAccess.Read, FileShare.Read)))
+            using BinaryReader binaryReader = new(File.Open(offMeshFilePath, FileMode.Open, FileAccess.Read, FileShare.Read));
+            // pretty silly thing, as we parse entire file and load only the tile we need
+            // but we don't expect this file to be too large
+            long fileLength = binaryReader.BaseStream.Length;
+            while (binaryReader.BaseStream.Position < fileLength)
             {
-                // pretty silly thing, as we parse entire file and load only the tile we need
-                // but we don't expect this file to be too large
-                long fileLength = binaryReader.BaseStream.Length;
-                while (binaryReader.BaseStream.Position < fileLength)
+                var s = binaryReader.ReadString(512);
+                float[] p0 = new float[0];
+                float[] p1 = new float[0];
+                uint mid = 0, tx = 0, ty = 0;
+                float size = 0;
+
+                string[] stringValues = s.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in stringValues)
                 {
-                    var s = binaryReader.ReadString(512);
-                    float[] p0 = new float[0];
-                    float[] p1 = new float[0];
-                    uint mid = 0, tx = 0, ty = 0;
-                    float size = 0;
-
-                    string[] stringValues = s.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var line in stringValues)
-                    {
-
-                    }
-
-                    if (mapID == mid && tileX == tx && tileY == ty)
-                    {
-                        meshData.offMeshConnections.Add(p0[1]);
-                        meshData.offMeshConnections.Add(p0[2]);
-                        meshData.offMeshConnections.Add(p0[0]);
-
-                        meshData.offMeshConnections.Add(p1[1]);
-                        meshData.offMeshConnections.Add(p1[2]);
-                        meshData.offMeshConnections.Add(p1[0]);
-
-                        meshData.offMeshConnectionDirs.Add(1);          // 1 - both direction, 0 - one sided
-                        meshData.offMeshConnectionRads.Add(size);       // agent size equivalent
-                                                                           // can be used same way as polygon flags
-                        meshData.offMeshConnectionsAreas.Add(0xFF);
-                        meshData.offMeshConnectionsFlags.Add(0xFF);  // all movement masks can make this path
-                    }
 
                 }
+
+                if (mapID == mid && tileX == tx && tileY == ty)
+                {
+                    meshData.offMeshConnections.Add(p0[1]);
+                    meshData.offMeshConnections.Add(p0[2]);
+                    meshData.offMeshConnections.Add(p0[0]);
+
+                    meshData.offMeshConnections.Add(p1[1]);
+                    meshData.offMeshConnections.Add(p1[2]);
+                    meshData.offMeshConnections.Add(p1[0]);
+
+                    meshData.offMeshConnectionDirs.Add(1);          // 1 - both direction, 0 - one sided
+                    meshData.offMeshConnectionRads.Add(size);       // agent size equivalent
+                                                                    // can be used same way as polygon flags
+                    meshData.offMeshConnectionsAreas.Add(0xFF);
+                    meshData.offMeshConnectionsFlags.Add(0xFF);  // all movement masks can make this path
+                }
+
             }
         }
 
@@ -956,18 +948,18 @@ namespace DataExtractor.Mmap
 
     class MeshData
     {
-        public List<float> solidVerts = new List<float>();
-        public List<int> solidTris = new List<int>();
+        public List<float> solidVerts = new();
+        public List<int> solidTris = new();
 
-        public List<float> liquidVerts = new List<float>();
-        public List<int> liquidTris = new List<int>();
-        public List<byte> liquidType = new List<byte>();
+        public List<float> liquidVerts = new();
+        public List<int> liquidTris = new();
+        public List<byte> liquidType = new();
 
         // offmesh connection data
-        public List<float> offMeshConnections = new List<float>();   // [p0y,p0z,p0x,p1y,p1z,p1x] - per connection
-        public List<float> offMeshConnectionRads = new List<float>();
-        public List<byte> offMeshConnectionDirs = new List<byte>();
-        public List<byte> offMeshConnectionsAreas = new List<byte>();
-        public List<ushort> offMeshConnectionsFlags = new List<ushort>();
+        public List<float> offMeshConnections = new();   // [p0y,p0z,p0x,p1y,p1z,p1x] - per connection
+        public List<float> offMeshConnectionRads = new();
+        public List<byte> offMeshConnectionDirs = new();
+        public List<byte> offMeshConnectionsAreas = new();
+        public List<ushort> offMeshConnectionsFlags = new();
     }
 }

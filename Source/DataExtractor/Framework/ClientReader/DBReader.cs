@@ -33,7 +33,7 @@ namespace DataExtractor.Framework.ClientReader
         {
             string fileName = FileList.DBFilesClientList.LookupByKey(fileDataId);
 
-            Dictionary<uint, T> storage = new Dictionary<uint, T>();
+            Dictionary<uint, T> storage = new();
 
             using (Stream stream = Program.CascHandler.OpenFile((int)fileDataId))
             {
@@ -43,7 +43,7 @@ namespace DataExtractor.Framework.ClientReader
                     return null;
                 }
 
-                DBReader reader = new DBReader();
+                DBReader reader = new();
                 if (!reader.Load(stream))
                 {
                     Console.WriteLine($"Error loading {fileName}.");
@@ -110,7 +110,7 @@ namespace DataExtractor.Framework.ClientReader
                 {
                     if (ColumnMeta[i].CompressionType == DB2ColumnCompression.Common)
                     {
-                        Dictionary<int, Value32> commonValues = new Dictionary<int, Value32>();
+                        Dictionary<int, Value32> commonValues = new();
                         CommonData[i] = commonValues;
 
                         for (int j = 0; j < ColumnMeta[i].AdditionalDataSize / 8; j++)
@@ -169,7 +169,7 @@ namespace DataExtractor.Framework.ClientReader
                     bool isIndexEmpty = Header.HasIndexTable() && indexData.Count(i => i == 0) == sections[sectionIndex].NumRecords;
 
                     // duplicate rows data
-                    Dictionary<int, int> copyData = new Dictionary<int, int>();
+                    Dictionary<int, int> copyData = new();
 
                     for (int i = 0; i < sections[sectionIndex].NumCopyRecords; i++)
                         copyData[reader.ReadInt32()] = reader.ReadInt32();
@@ -214,7 +214,7 @@ namespace DataExtractor.Framework.ClientReader
                         //indexData = sparseIndexData;
                     }
 
-                    BitReader bitReader = new BitReader(recordsData);
+                    BitReader bitReader = new(recordsData);
 
                     for (int i = 0; i < sections[sectionIndex].NumRecords; ++i)
                     {
@@ -254,7 +254,7 @@ namespace DataExtractor.Framework.ClientReader
         internal Value32[][] PalletData;
         internal Dictionary<int, Value32>[] CommonData;
 
-        Dictionary<int, WDC3Row> _records = new Dictionary<int, WDC3Row>();
+        Dictionary<int, WDC3Row> _records = new();
     }
 
     class WDC3Row
@@ -385,7 +385,7 @@ namespace DataExtractor.Framework.ClientReader
             _data.Offset = _dataOffset;
 
             int fieldIndex = 0;
-            T obj = new T();
+            T obj = new();
 
             foreach (var f in typeof(T).GetFields())
             {
