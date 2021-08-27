@@ -190,11 +190,11 @@ namespace DataExtractor.Vmap.Collision
             if (groups != 1)
                 Console.WriteLine($"Warning: '{modelFilename}' does not seem to be a M2 model!");
 
-            AxisAlignedBox modelBound = AxisAlignedBox.NaN;
-            modelBound.merge(modelPosition.Transform(raw_model.groupsArray[0].bounds.Lo));
-            modelBound.merge(modelPosition.Transform(raw_model.groupsArray[0].bounds.Hi));
+            AxisAlignedBox rotated_bounds = default;
+            for (int i = 0; i < 8; ++i)
+                rotated_bounds.merge(modelPosition.Transform(raw_model.groupsArray[0].bounds.corner(i)));
 
-            spawn.iBound = modelBound + spawn.iPos;
+            spawn.iBound = rotated_bounds + spawn.iPos;
             spawn.flags |= ModelFlags.HasBound;
             return true;
         }
