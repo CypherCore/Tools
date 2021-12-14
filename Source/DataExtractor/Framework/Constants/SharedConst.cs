@@ -22,8 +22,18 @@ namespace DataExtractor.Framework.Constants
 {
     class SharedConst
     {
+        public const uint MAP_MAGIC = 0x5350414D; //"MAPS";
+        public const uint MAP_VERSION_MAGIC = 0x392E3176; // v1.9
+
+        public const uint MAP_AREA_MAGIC = 0x41455241; //"AREA";
+        public const uint MAP_HEIGHT_MAGIC = 0x5447484D; //"MHGT";
+        public const uint MAP_LIQUID_MAGIC = 0x51494C4D; //"MLIQ";
+
         public const string VMAP_MAGIC = "VMAP_4.9";
         public const string RAW_VMAP_MAGIC = "VMAP049";
+
+        public const uint MMAP_MAGIC = 0x4D4D4150;   // 'MMAP'
+        public const uint MMAP_VERSION = 9;
 
         public const float LIQUID_TILE_SIZE = 533.333f / 128.0f;
 
@@ -42,15 +52,6 @@ namespace DataExtractor.Framework.Constants
             LocaleFlags.ptBR | LocaleFlags.ptPT,
             LocaleFlags.itIT
         };
-
-        public const uint MMAP_MAGIC = 0x4D4D4150;   // 'MMAP'
-        public const uint MMAP_VERSION = 9;
-        public const uint MAP_VERSION_MAGIC = 0x392E3176;
-
-        public const uint MAP_MAGIC = 0x5350414D; //"MAPS";
-        public const uint MAP_AREA_MAGIC = 0x41455241; //"AREA";
-        public const uint MAP_HEIGHT_MAGIC = 0x5447484D; //"MHGT";
-        public const uint MAP_LIQUID_MAGIC = 0x51494C4D; //"MLIQ";
 
         public const int DT_NAVMESH_VERSION = 7;
         public const int DT_VERTS_PER_POLYGON = 6;
@@ -75,16 +76,33 @@ namespace DataExtractor.Framework.Constants
         public static int MCVT_HEIGHT_MAP_SIZE = (ADT_CELL_SIZE + 1) * (ADT_CELL_SIZE + 1) + ADT_CELL_SIZE * ADT_CELL_SIZE;
     }
 
-    public enum LiquidType
+    [Flags]
+    public enum AreaHeaderFlags : ushort
     {
-        Water = 0,
-        Ocean = 1,
-        Magma = 2,
-        Slime = 3
+        None = 0x00,
+        NoArea = 0x01
     }
 
     [Flags]
-    public enum LiquidTypeMask
+    public enum HeightHeaderFlags : byte
+    {
+        None = 0x00,
+        NoHeight = 0x01,
+        AsInt16 = 0x02,
+        AsInt8 = 0x04,
+        HasFlightBounds = 0x08
+    }
+
+    [Flags]
+    public enum LiquidHeaderFlags : byte
+    {
+        None = 0x00,
+        NoType = 0x01,
+        NoHeight = 0x02
+    }
+
+    [Flags]
+    public enum LiquidHeaderTypeFlags : byte
     {
         NoWater = 0x00,
         Water = 0x01,
@@ -92,17 +110,17 @@ namespace DataExtractor.Framework.Constants
         Magma = 0x04,
         Slime = 0x08,
 
-        DarkWater = 0x10
+        DarkWater = 0x10,
+
+        AllLiquids = Water | Ocean | Magma | Slime
     }
 
-    [Flags]
-    public enum MapHeightFlags
+    public enum LiquidType
     {
-        None = 0x00,
-        NoHeight = 0x01,
-        AsInt16 = 0x02,
-        AsInt8 = 0x04,
-        HasFlightBounds = 0x08
+        Water = 0,
+        Ocean = 1,
+        Magma = 2,
+        Slime = 3
     }
 
     [Flags]

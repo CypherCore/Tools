@@ -171,7 +171,7 @@ namespace DataExtractor.CASCLib
         {
             StringBuilder sb = new(bits.Length);
 
-            for (int i = 0; i < bits.Length; ++i)
+            for (int i = bits.Length - 1; i >= 0; --i)
             {
                 sb.Append(bits[i] ? '1' : '0');
             }

@@ -24,6 +24,7 @@ namespace DataExtractor.Framework.ClientReader
         public uint SoundID;
         public float OriginFacing;
         public uint FileDataID;
+        public int Unknown915;
     }
 
     public sealed class GameObjectDisplayInfoRecord

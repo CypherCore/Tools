@@ -23,6 +23,7 @@ using DataExtractor.Mmap;
 using DataExtractor.Vmap;
 using DataExtractor.Vmap.Collision;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -271,10 +272,14 @@ namespace DataExtractor
 
             foreach (var record in mapStorage.Values)
             {
+                if (record.WdtFileDataID == 0)
+                    continue;
+
                 Console.Write($"Extract {record.Directory} ({count++}/{mapStorage.Count})                  \n");
                 // Loadup map grid data
                 ChunkedFile wdt = new();
-                char[] existingTiles = new char[64 * 64];
+
+                BitArray existingTiles = new(64*64);
                 if (wdt.LoadFile(CascHandler, (uint)record.WdtFileDataID, $"WDT for map {record.Id}"))
                 {
                     MPHD mphd = wdt.GetChunk("MPHD").As<MPHD>();
@@ -283,20 +288,21 @@ namespace DataExtractor
                     {
                         for (int x = 0; x < 64; ++x)
                         {
-                            if (!Convert.ToBoolean(main.MapAreaInfo[y][x].Flag & 0x1))
+                            if ((main.MapAreaInfo[y][x].Flag & 0x1) == 0)
                                 continue;
 
                             string outputFileName = $"{path}/{record.Id:D4}_{y:D2}_{x:D2}.map";
                             bool ignoreDeepWater = MapFile.IsDeepWaterIgnored(record.Id, y, x);
+
                             if (mphd != null && (mphd.Flags & 0x200) != 0)
                             {
                                 MAID maid = wdt.GetChunk("MAID").As<MAID>();
-                                existingTiles[y * 64 + x] = Convert.ToChar(MapFile.ConvertADT(CascHandler, maid.MapFileDataIDs[y][x].RootADT, record.MapName, outputFileName, y, x, ignoreDeepWater));
+                                existingTiles[y * 64 + x] = MapFile.ConvertADT(CascHandler, maid.MapFileDataIDs[y][x].RootADT, record.MapName, outputFileName, y, x, ignoreDeepWater);
                             }
                             else
                             {
                                 string storagePath = $"World\\Maps\\{record.Directory}\\{record.Directory}_{x}_{y}.adt";
-                                existingTiles[y * 64 + x] = Convert.ToChar(MapFile.ConvertADT(CascHandler, storagePath, record.MapName, outputFileName, y, x, ignoreDeepWater));
+                                existingTiles[y * 64 + x] = MapFile.ConvertADT(CascHandler, storagePath, record.MapName, outputFileName, y, x, ignoreDeepWater);
                             }
                         }
                         // draw progress bar
@@ -308,7 +314,7 @@ namespace DataExtractor
                 binaryWriter.Write(SharedConst.MAP_MAGIC);
                 binaryWriter.Write(SharedConst.MAP_VERSION_MAGIC);
                 binaryWriter.Write(_build);
-                binaryWriter.Write(existingTiles);
+                binaryWriter.WriteString(existingTiles.ToBinaryString());
             }
             Console.WriteLine("\n");
         }

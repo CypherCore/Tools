@@ -34,7 +34,7 @@ namespace DataExtractor
             {
                 AreaIDs[i] = new ushort[SharedConst.ADT_CELLS_PER_GRID];
                 LiquidEntries[i] = new ushort[SharedConst.ADT_CELLS_PER_GRID];
-                LiquidFlags[i] = new byte[SharedConst.ADT_CELLS_PER_GRID];
+                LiquidFlags[i] = new LiquidHeaderTypeFlags[SharedConst.ADT_CELLS_PER_GRID];
             }
 
             for (var i = 0; i < SharedConst.ADT_CELLS_PER_GRID; ++i)
@@ -254,7 +254,7 @@ namespace DataExtractor
                                 {
                                     LiquidSnow[cy][cx] = true;
                                     if (!ignoreDeepWater && Convert.ToBoolean(liquid.Flags[y][x] & (1 << 7)))
-                                        LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= (byte)LiquidTypeMask.DarkWater;
+                                        LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= LiquidHeaderTypeFlags.DarkWater;
                                     ++count;
                                 }
                             }
@@ -263,22 +263,22 @@ namespace DataExtractor
                         if (mcnk.Flags.HasAnyFlag(MCNKFlags.LiquidRiver))
                         {
                             LiquidEntries[mcnk.IndexY][mcnk.IndexX] = 1;
-                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= (byte)LiquidTypeMask.Water;            // water
+                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= LiquidHeaderTypeFlags.Water;            // water
                         }
                         if (mcnk.Flags.HasAnyFlag(MCNKFlags.LiquidOcean))
                         {
                             LiquidEntries[mcnk.IndexY][mcnk.IndexX] = 2;
-                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= (byte)LiquidTypeMask.Ocean;            // ocean
+                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= LiquidHeaderTypeFlags.Ocean;            // ocean
                         }
                         if (mcnk.Flags.HasAnyFlag(MCNKFlags.LiquidMagma))
                         {
                             LiquidEntries[mcnk.IndexY][mcnk.IndexX] = 3;
-                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= (byte)LiquidTypeMask.Magma;            // magma/slime
+                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= LiquidHeaderTypeFlags.Magma;            // magma
                         }
                         if (mcnk.Flags.HasAnyFlag(MCNKFlags.LiquidSlime))
                         {
                             LiquidEntries[mcnk.IndexY][mcnk.IndexX] = 4;
-                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= (byte)LiquidTypeMask.Slime;            // slime
+                            LiquidFlags[mcnk.IndexY][mcnk.IndexX] |= LiquidHeaderTypeFlags.Slime;            // slime
                         }
 
                         if (count == 0 && LiquidFlags[mcnk.IndexY][mcnk.IndexX] != 0)
@@ -352,18 +352,18 @@ namespace DataExtractor
                             switch ((LiquidType)liquidTypeRecord.SoundBank)
                             {
                                 case LiquidType.Water:
-                                    LiquidFlags[i][j] |= (byte)LiquidTypeMask.Water;
+                                    LiquidFlags[i][j] |= LiquidHeaderTypeFlags.Water;
                                     break;
                                 case LiquidType.Ocean:
-                                    LiquidFlags[i][j] |= (byte)LiquidTypeMask.Ocean;
+                                    LiquidFlags[i][j] |= LiquidHeaderTypeFlags.Ocean;
                                     if (!ignoreDeepWater && attrs.Value.Deep != 0)
-                                        LiquidFlags[i][j] |= (byte)LiquidTypeMask.DarkWater;
+                                        LiquidFlags[i][j] |= LiquidHeaderTypeFlags.DarkWater;
                                     break;
                                 case LiquidType.Magma:
-                                    LiquidFlags[i][j] |= (byte)LiquidTypeMask.Magma;
+                                    LiquidFlags[i][j] |= LiquidHeaderTypeFlags.Magma;
                                     break;
                                 case LiquidType.Slime:
-                                    LiquidFlags[i][j] |= (byte)LiquidTypeMask.Slime;
+                                    LiquidFlags[i][j] |= LiquidHeaderTypeFlags.Slime;
                                     break;
                                 default:
                                     Console.WriteLine($"\nCan't find Liquid type {adtLiquidHeader.LiquidType} for map {mapName}\nchunk {i},{j}\n");
@@ -440,7 +440,7 @@ namespace DataExtractor
             }
             else
             {
-                areaHeader.flags |= 0x0001;
+                areaHeader.flags |= AreaHeaderFlags.NoArea;
                 areaHeader.gridArea = (ushort)areaId;
             }
 
@@ -500,20 +500,20 @@ namespace DataExtractor
             heightHeader.gridMaxHeight = maxHeight;
 
             if (maxHeight == minHeight)
-                heightHeader.flags |= MapHeightFlags.NoHeight;
+                heightHeader.flags |= HeightHeaderFlags.NoHeight;
 
             // Not need store if flat surface
             if ((maxHeight - minHeight) < 0.005f)
-                heightHeader.flags |= MapHeightFlags.NoHeight;
+                heightHeader.flags |= HeightHeaderFlags.NoHeight;
 
             if (hasFlightBox)
             {
-                heightHeader.flags |= MapHeightFlags.HasFlightBounds;
+                heightHeader.flags |= HeightHeaderFlags.HasFlightBounds;
                 map.heightMapSize += 18 + 18;
             }
 
             // Try store as packed in uint16 or uint8 values
-            if (!heightHeader.flags.HasFlag(MapHeightFlags.NoHeight))
+            if (!heightHeader.flags.HasFlag(HeightHeaderFlags.NoHeight))
             {
                 float step = 0;
                 // Try Store as uint values
@@ -522,18 +522,18 @@ namespace DataExtractor
                     float diff = maxHeight - minHeight;
                     if (diff < 2.0f)      // As uint8 (max accuracy = CONF_float_to_int8_limit/256)
                     {
-                        heightHeader.flags |= MapHeightFlags.AsInt8;
+                        heightHeader.flags |= HeightHeaderFlags.AsInt8;
                         step = 255 / diff;
                     }
                     else if (diff < 2048.0f)  // As uint16 (max accuracy = CONF_float_to_int16_limit/65536)
                     {
-                        heightHeader.flags |= MapHeightFlags.AsInt16;
+                        heightHeader.flags |= HeightHeaderFlags.AsInt16;
                         step = 65535 / diff;
                     }
                 }
 
                 // Pack it to int values if need
-                if (heightHeader.flags.HasFlag(MapHeightFlags.AsInt8))
+                if (heightHeader.flags.HasFlag(HeightHeaderFlags.AsInt8))
                 {
                     for (int y = 0; y < SharedConst.ADT_GRID_SIZE; y++)
                         for (int x = 0; x < SharedConst.ADT_GRID_SIZE; x++)
@@ -543,7 +543,7 @@ namespace DataExtractor
                             UInt8_V9[y][x] = (byte)((V9[y][x] - minHeight) * step + 0.5f);
                     map.heightMapSize += 16641 + 16384;
                 }
-                else if (heightHeader.flags.HasFlag(MapHeightFlags.AsInt16))
+                else if (heightHeader.flags.HasFlag(HeightHeaderFlags.AsInt16))
                 {
                     for (int y = 0; y < SharedConst.ADT_GRID_SIZE; y++)
                         for (int x = 0; x < SharedConst.ADT_GRID_SIZE; x++)
@@ -563,7 +563,7 @@ namespace DataExtractor
             // Pack liquid data
             //============================================
             ushort firstLiquidType = LiquidEntries[0][0];
-            byte firstLiquidFlag = LiquidFlags[0][0];
+            LiquidHeaderTypeFlags firstLiquidFlag = LiquidFlags[0][0];
             bool fullType = false;
             for (int y = 0; y < SharedConst.ADT_CELLS_PER_GRID; y++)
             {
@@ -619,8 +619,9 @@ namespace DataExtractor
                 }
                 map.liquidMapOffset = map.heightMapOffset + map.heightMapSize;
                 map.liquidMapSize = (uint)Marshal.SizeOf<MapLiquidHeader>();
+
                 mapLiquidHeader.fourcc = SharedConst.MAP_LIQUID_MAGIC;
-                mapLiquidHeader.flags = 0;
+                mapLiquidHeader.flags = LiquidHeaderFlags.None;
                 mapLiquidHeader.liquidType = 0;
                 mapLiquidHeader.offsetX = (byte)minX;
                 mapLiquidHeader.offsetY = (byte)minY;
@@ -629,16 +630,16 @@ namespace DataExtractor
                 mapLiquidHeader.liquidLevel = minHeight;
 
                 if (maxHeight == minHeight)
-                    mapLiquidHeader.flags |= 0x0002;
+                    mapLiquidHeader.flags |= LiquidHeaderFlags.NoHeight;
 
                 // Not need store if flat surface
                 if ((maxHeight - minHeight) < 0.001f)
-                    mapLiquidHeader.flags |= 0x0002;
+                    mapLiquidHeader.flags |= LiquidHeaderFlags.NoHeight;
 
                 if (!fullType)
-                    mapLiquidHeader.flags |= 0x0001;
+                    mapLiquidHeader.flags |= LiquidHeaderFlags.NoType;
 
-                if (Convert.ToBoolean(mapLiquidHeader.flags & 0x0001))
+                if (mapLiquidHeader.flags.HasFlag(LiquidHeaderFlags.NoType))
                 {
                     mapLiquidHeader.liquidFlags = firstLiquidFlag;
                     mapLiquidHeader.liquidType = firstLiquidType;
@@ -646,7 +647,7 @@ namespace DataExtractor
                 else
                     map.liquidMapSize += 512 + 256;
 
-                if (!Convert.ToBoolean(mapLiquidHeader.flags & 0x0002))
+                if (!mapLiquidHeader.flags.HasFlag(LiquidHeaderFlags.NoHeight))
                     map.liquidMapSize += (uint)(sizeof(float) * mapLiquidHeader.width * mapLiquidHeader.height);
             }
 
@@ -671,7 +672,7 @@ namespace DataExtractor
                 binaryWriter.WriteStruct(map);
                 // Store area data
                 binaryWriter.WriteStruct(areaHeader);
-                if (!Convert.ToBoolean(areaHeader.flags & 0x0001))
+                if (!areaHeader.flags.HasFlag(AreaHeaderFlags.NoArea))
                 {
                     for (var x = 0; x < AreaIDs.Length; ++x)
                         for (var y = 0; y < AreaIDs[x].Length; ++y)
@@ -680,9 +681,9 @@ namespace DataExtractor
 
                 // Store height data
                 binaryWriter.WriteStruct(heightHeader);
-                if (!heightHeader.flags.HasFlag(MapHeightFlags.NoHeight))
+                if (!heightHeader.flags.HasFlag(HeightHeaderFlags.NoHeight))
                 {
-                    if (heightHeader.flags.HasFlag(MapHeightFlags.AsInt16))
+                    if (heightHeader.flags.HasFlag(HeightHeaderFlags.AsInt16))
                     {
                         for (var x = 0; x < UInt16_V9.Length; ++x)
                             for (var y = 0; y < UInt16_V9[x].Length; ++y)
@@ -692,7 +693,7 @@ namespace DataExtractor
                             for (var y = 0; y < UInt16_V8[x].Length; ++y)
                                 binaryWriter.Write(UInt16_V8[x][y]);
                     }
-                    else if (heightHeader.flags.HasFlag(MapHeightFlags.AsInt8))
+                    else if (heightHeader.flags.HasFlag(HeightHeaderFlags.AsInt8))
                     {
                         for (var x = 0; x < UInt8_V9.Length; ++x)
                             for (var y = 0; y < UInt8_V9[x].Length; ++y)
@@ -714,7 +715,7 @@ namespace DataExtractor
                     }
                 }
 
-                if (heightHeader.flags.HasFlag(MapHeightFlags.HasFlightBounds))
+                if (heightHeader.flags.HasFlag(HeightHeaderFlags.HasFlightBounds))
                 {
                     for (var x = 0; x < 3; ++x)
                         for (var y = 0; y < 3; ++y)
@@ -729,7 +730,7 @@ namespace DataExtractor
                 if (map.liquidMapOffset != 0)
                 {
                     binaryWriter.WriteStruct(mapLiquidHeader);
-                    if (!Convert.ToBoolean(mapLiquidHeader.flags & 0x0001))
+                    if (!mapLiquidHeader.flags.HasFlag(LiquidHeaderFlags.NoType))
                     {
                         for (var x = 0; x < LiquidEntries.Length; ++x)
                             for (var y = 0; y < LiquidEntries[x].Length; ++y)
@@ -737,10 +738,10 @@ namespace DataExtractor
 
                         for (var x = 0; x < LiquidFlags.Length; ++x)
                             for (var y = 0; y < LiquidFlags[x].Length; ++y)
-                                binaryWriter.Write(LiquidFlags[x][y]);
+                                binaryWriter.Write((byte)LiquidFlags[x][y]);
                     }
 
-                    if (!Convert.ToBoolean(mapLiquidHeader.flags & 0x0002))
+                    if (!mapLiquidHeader.flags.HasFlag(LiquidHeaderFlags.NoHeight))
                     {
                         for (int y = 0; y < mapLiquidHeader.height; y++)
                             for (int x = 0; x < mapLiquidHeader.width; x++)
@@ -798,7 +799,7 @@ namespace DataExtractor
         static byte[][] UInt8_V9 = new byte[SharedConst.ADT_GRID_SIZE + 1][];
 
         static ushort[][] LiquidEntries = new ushort[SharedConst.ADT_CELLS_PER_GRID][];
-        static byte[][] LiquidFlags = new byte[SharedConst.ADT_CELLS_PER_GRID][];
+        static LiquidHeaderTypeFlags[][] LiquidFlags = new LiquidHeaderTypeFlags[SharedConst.ADT_CELLS_PER_GRID][];
         static bool[][] LiquidSnow = new bool[SharedConst.ADT_GRID_SIZE][];
         static float[][] LiquidHeight = new float[SharedConst.ADT_GRID_SIZE + 1][];
         static byte[][][] Holes = new byte[SharedConst.ADT_CELLS_PER_GRID][][];
@@ -824,17 +825,17 @@ namespace DataExtractor
             public uint holesSize;
         }
 
-        struct MapAreaHeader
+        public struct MapAreaHeader
         {
             public uint fourcc;
-            public ushort flags;
+            public AreaHeaderFlags flags;
             public ushort gridArea;
         }
 
         public struct MapHeightHeader
         {
             public uint fourcc;
-            public MapHeightFlags flags;
+            public HeightHeaderFlags flags;
             public float gridHeight;
             public float gridMaxHeight;
         }
@@ -843,8 +844,8 @@ namespace DataExtractor
     public struct MapLiquidHeader
     {
         public uint fourcc;
-        public byte flags;
-        public byte liquidFlags;
+        public LiquidHeaderFlags flags;
+        public LiquidHeaderTypeFlags liquidFlags;
         public ushort liquidType;
         public byte offsetX;
         public byte offsetY;
